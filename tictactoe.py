@@ -2,36 +2,92 @@
 # Weekend 1: Setup & Game Board
 # Weekend 2: Taking Turns
 # Weekend 3: Winning & Ending
+# Weekend 4: Polish & Features
 
-# The board is a list of lists (a 2D list).
-# Think of it like a grid of boxes - 3 rows, each with 3 spaces.
-# Each space starts with a number so players know where to play.
+import os
+import sys
 
-board = [
-    ["1", "2", "3"],
-    ["4", "5", "6"],
-    ["7", "8", "9"]
-]
+# Make sure the terminal can display our fancy box characters (╔, ═, etc.)
+# This tells Python to use UTF-8 encoding for output.
+sys.stdout.reconfigure(encoding="utf-8")
+
+
+def clear_screen():
+    """Clear the terminal screen so the board doesn't scroll.
+
+    os.system() runs a command in the terminal.
+    'cls' is the Windows command to clear the screen.
+    'clear' is the Mac/Linux command.
+    os.name tells us which operating system we're on:
+      'nt' means Windows, anything else means Mac/Linux.
+    """
+    os.system("cls" if os.name == "nt" else "clear")
 
 
 def display_board(board):
-    """Show the tic-tac-toe board in a nice format."""
+    """Show the tic-tac-toe board in a nice format with box borders."""
     print()
+    print("  ╔═══╦═══╦═══╗")
     for i, row in enumerate(board):
-        print("  " + row[0] + " | " + row[1] + " | " + row[2])
+        print("  ║ " + row[0] + " ║ " + row[1] + " ║ " + row[2] + " ║")
         if i < 2:
-            print("  " + "-" * 9)
+            print("  ╠═══╬═══╬═══╣")
+    print("  ╚═══╩═══╩═══╝")
     print()
 
 
-def get_move(player):
+def display_scoreboard(names, scores):
+    """Show the current score between the two players.
+
+    Uses f-strings - a way to put variables inside a string
+    by writing f"text {variable} more text".
+    """
+    print(f"  ┌─── SCOREBOARD ───┐")
+    print(f"  │ {names['X']}: {scores['X']}  vs  {names['O']}: {scores['O']}  │  Ties: {scores['tie']}")
+    print(f"  └────────────────────┘")
+
+
+def get_player_names():
+    """Ask both players for their names at the start.
+
+    Returns a dictionary that maps 'X' and 'O' to player names.
+    A dictionary is like a labeled box - you look up a value by its label (key).
+    """
+    print("=== Player Setup ===")
+    name_x = input("Enter name for Player X: ").strip()
+    name_o = input("Enter name for Player O: ").strip()
+
+    # If they left a name blank, use a default
+    if not name_x:
+        name_x = "Player X"
+    if not name_o:
+        name_o = "Player O"
+
+    # Return a dictionary: the key is the mark, the value is the name
+    return {"X": name_x, "O": name_o}
+
+
+def reset_board():
+    """Create a fresh board with numbers 1-9.
+
+    We need this to start a new game without leftover X's and O's.
+    Returns a brand new 2D list.
+    """
+    return [
+        ["1", "2", "3"],
+        ["4", "5", "6"],
+        ["7", "8", "9"]
+    ]
+
+
+def get_move(board, player, player_name):
     """Ask the player to pick a spot and make sure it's valid.
 
     This function uses a while loop - it keeps asking until
     the player gives a good answer (a number 1-9 that isn't taken).
     """
     while True:
-        move = input("Player " + player + ", pick a spot (1-9): ")
+        move = input(f"{player_name} ({player}), pick a spot (1-9): ")
 
         # Check if they typed a number
         if move not in "123456789" or len(move) != 1:
@@ -53,7 +109,7 @@ def get_move(player):
         return row, col
 
 
-def place_move(row, col, player):
+def place_move(board, row, col, player):
     """Put the player's mark (X or O) on the board."""
     board[row][col] = player
 
@@ -113,40 +169,113 @@ def check_tie(board):
     return True
 
 
-# --- Game Start! ---
-print("Welcome to Tic-Tac-Toe!")
-print("Player X goes first, then Player O takes turns.")
-display_board(board)
+def play_again():
+    """Ask if the players want to play another game.
 
-# current_player keeps track of whose turn it is
-# We switch between "X" and "O" each turn
-current_player = "X"
+    Returns True if yes, False if no.
+    .lower() converts their answer to lowercase so 'Y', 'y', 'YES' all work.
+    """
+    while True:
+        answer = input("Play again? (y/n): ").strip().lower()
+        if answer in ["y", "yes"]:
+            return True
+        elif answer in ["n", "no"]:
+            return False
+        else:
+            print("Please enter 'y' for yes or 'n' for no.")
 
-# The game loop - keeps going for up to 9 turns (the whole board)
-for turn in range(9):
-    # Ask the current player for their move
-    row, col = get_move(current_player)
 
-    # Place their mark on the board
-    place_move(row, col, current_player)
+def play_game(board, names, scores):
+    """Play one complete game of tic-tac-toe.
 
-    # Show the updated board
+    This function contains the turn-by-turn game loop.
+    It updates the scores dictionary when the game ends.
+    """
+    current_player = "X"
+
+    # The game loop - keeps going for up to 9 turns (the whole board)
+    for turn in range(9):
+        # Ask the current player for their move
+        row, col = get_move(board, current_player, names[current_player])
+
+        # Place their mark on the board
+        place_move(board, row, col, current_player)
+
+        # Clear screen and redraw everything
+        clear_screen()
+        print("=== Tic-Tac-Toe ===")
+        display_scoreboard(names, scores)
+        display_board(board)
+
+        # Check if the current player just won!
+        winner = check_winner(board)
+        if winner:
+            print(f"🎉 {names[winner]} ({winner}) wins! Congratulations! 🎉")
+            scores[winner] += 1
+            return
+
+        # Check if the board is full (tie game)
+        if check_tie(board):
+            print("It's a tie! Great game, everyone!")
+            scores["tie"] += 1
+            return
+
+        # Switch to the other player
+        # if/else: if it's X's turn, switch to O. Otherwise switch to X.
+        if current_player == "X":
+            current_player = "O"
+        else:
+            current_player = "X"
+
+
+# ======================
+# --- Program Start! ---
+# ======================
+
+clear_screen()
+print("╔═══════════════════════╗")
+print("║   Welcome to          ║")
+print("║   TIC-TAC-TOE! 🎮    ║")
+print("╚═══════════════════════╝")
+print()
+
+# Get player names
+names = get_player_names()
+
+# Scores are stored in a dictionary - easy to look up by key
+# scores["X"] is Player X's wins, scores["O"] is Player O's wins
+scores = {"X": 0, "O": 0, "tie": 0}
+
+# Outer game loop - keeps playing until they want to stop
+playing = True
+while playing:
+    # Reset the board for a fresh game
+    board = reset_board()
+
+    # Show the starting state
+    clear_screen()
+    print("=== Tic-Tac-Toe ===")
+    display_scoreboard(names, scores)
     display_board(board)
+    print(f"{names['X']} (X) goes first!")
+    print()
 
-    # Check if the current player just won!
-    winner = check_winner(board)
-    if winner:
-        print("Player " + winner + " wins! Congratulations!")
-        break
+    # Play one complete game
+    play_game(board, names, scores)
 
-    # Check if the board is full (tie game)
-    if check_tie(board):
-        print("It's a tie! Great game, everyone!")
-        break
+    # Show final score and ask to play again
+    print()
+    display_scoreboard(names, scores)
+    print()
+    playing = play_again()
 
-    # Switch to the other player
-    # if/else: if it's X's turn, switch to O. Otherwise switch to X.
-    if current_player == "X":
-        current_player = "O"
-    else:
-        current_player = "X"
+# Goodbye message
+clear_screen()
+print("╔═══════════════════════════╗")
+print("║   Thanks for playing! 🎉  ║")
+print("╚═══════════════════════════╝")
+print()
+print("=== Final Scores ===")
+display_scoreboard(names, scores)
+print()
+print("See you next time!")
