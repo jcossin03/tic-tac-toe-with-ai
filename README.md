@@ -39,7 +39,7 @@ Requires **Python 3.10+**.
 - Announce the winner
 
 ### Weekend 4: Polish & Features
-**Status:** Not started
+**Status:** Complete
 
 **Python Concepts:** String formatting, clearing screen, game loop
 
