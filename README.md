@@ -48,21 +48,25 @@ Requires **Python 3.10+**.
 - Score tracking across multiple games
 - Player names
 
-### Weekend 5-6: AI Player (Optional Challenge)
-**Status:** Not started
+### Weekend 5-6: AI Player
+**Status:** Complete
 
-**Python Concepts:** Random choice, simple strategy
+**Python Concepts:** Random module, time module, simple strategy, "what if" logic
 
-- Computer opponent that plays randomly
-- Computer that blocks winning moves
+- Single-player and two-player game modes
+- Easy difficulty (random moves)
+- Hard difficulty (strategic AI: win → block → center → corner → random)
+- Computer "thinking" animation
+- Difficulty display during gameplay
 
 ## Project Structure
 
 ```
 tic-tac-toe/
-  tictactoe.py    # Main game file
-  README.md       # This file
-  .gitignore      # Git ignore rules for Python
+  tictactoe.py        # Main game file
+  test_tictactoe.py   # Unit tests
+  README.md           # This file
+  .gitignore          # Git ignore rules for Python
 ```
 
 ## What We're Learning
