@@ -1,6 +1,7 @@
 # Tic-Tac-Toe Game
 # Weekend 1: Setup & Game Board
 # Weekend 2: Taking Turns
+# Weekend 3: Winning & Ending
 
 # The board is a list of lists (a 2D list).
 # Think of it like a grid of boxes - 3 rows, each with 3 spaces.
@@ -57,6 +58,61 @@ def place_move(row, col, player):
     board[row][col] = player
 
 
+def check_winner(board):
+    """Check if someone has won the game.
+
+    Returns the winning player ("X" or "O") if there's a winner,
+    or None if no one has won yet.
+
+    There are 3 ways to win tic-tac-toe:
+    1. Three in a row (horizontal)
+    2. Three in a column (vertical)
+    3. Three in a diagonal
+    """
+
+    # --- Check horizontal wins (rows) ---
+    # Look at each row: if all 3 spots match, that player wins!
+    for row in board:
+        if row[0] == row[1] == row[2]:
+            return row[0]
+
+    # --- Check vertical wins (columns) ---
+    # This is trickier - we need to look DOWN each column.
+    # board[0][col] is the top, board[1][col] is the middle,
+    # board[2][col] is the bottom.
+    for col in range(3):
+        if board[0][col] == board[1][col] == board[2][col]:
+            return board[0][col]
+
+    # --- Check diagonal wins ---
+    # Top-left to bottom-right: (0,0), (1,1), (2,2)
+    if board[0][0] == board[1][1] == board[2][2]:
+        return board[0][0]
+
+    # Top-right to bottom-left: (0,2), (1,1), (2,0)
+    if board[0][2] == board[1][1] == board[2][0]:
+        return board[0][2]
+
+    # No winner yet
+    return None
+
+
+def check_tie(board):
+    """Check if the board is full (all spots taken).
+
+    Returns True if every spot has an X or O (no numbers left).
+    Returns False if there are still open spots.
+
+    We loop through every row and every spot - if we find any
+    spot that isn't X or O, the board isn't full yet.
+    """
+    for row in board:
+        for spot in row:
+            if spot not in ["X", "O"]:
+                return False
+    return True
+
+
 # --- Game Start! ---
 print("Welcome to Tic-Tac-Toe!")
 print("Player X goes first, then Player O takes turns.")
@@ -77,11 +133,20 @@ for turn in range(9):
     # Show the updated board
     display_board(board)
 
+    # Check if the current player just won!
+    winner = check_winner(board)
+    if winner:
+        print("Player " + winner + " wins! Congratulations!")
+        break
+
+    # Check if the board is full (tie game)
+    if check_tie(board):
+        print("It's a tie! Great game, everyone!")
+        break
+
     # Switch to the other player
     # if/else: if it's X's turn, switch to O. Otherwise switch to X.
     if current_player == "X":
         current_player = "O"
     else:
         current_player = "X"
-
-print("The board is full! Game over!")
