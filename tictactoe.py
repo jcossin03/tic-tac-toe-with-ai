@@ -41,10 +41,18 @@ def display_scoreboard(names, scores):
 
     Uses f-strings - a way to put variables inside a string
     by writing f"text {variable} more text".
+
+    The box width adjusts dynamically based on the content length
+    so the top and bottom borders always match.
     """
-    print(f"  ┌─── SCOREBOARD ───┐")
-    print(f"  │ {names['X']}: {scores['X']}  vs  {names['O']}: {scores['O']}  │  Ties: {scores['tie']}")
-    print(f"  └────────────────────┘")
+    # Build the content line first so we can measure its length
+    content = f" {names['X']}: {scores['X']}  vs  {names['O']}: {scores['O']}  Ties: {scores['tie']} "
+    # Calculate how wide the box needs to be
+    width = len(content)
+    # Build the box with matching borders
+    print("  ┌" + "─" * width + "┐")
+    print("  │" + content + "│")
+    print("  └" + "─" * width + "┘")
 
 
 def get_player_names():
