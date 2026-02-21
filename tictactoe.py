@@ -11,6 +11,50 @@ import sys
 # This tells Python to use UTF-8 encoding for output.
 sys.stdout.reconfigure(encoding="utf-8")
 
+# On Windows, enable ANSI color support in the terminal.
+# Without this, color codes show up as garbled text instead of colors.
+if os.name == "nt":
+    os.system("")
+
+
+# =========================
+# --- Color Helpers ---
+# =========================
+
+# ANSI escape codes for colors.
+# These are special character sequences that tell the terminal
+# to change the text color. Think of them like invisible paint instructions.
+# "\033[" starts the code, the number picks the color, and "m" ends it.
+
+RESET = "\033[0m"       # Turn off all colors (back to normal)
+DIM = "\033[2m"          # Dim/faded text (for available numbers)
+BOLD = "\033[1m"         # Bold text
+CYAN = "\033[96m"        # Bright cyan (for X)
+RED = "\033[91m"         # Bright red (for O)
+YELLOW = "\033[93m"      # Bright yellow (for banners)
+GREEN = "\033[92m"       # Bright green (for win messages)
+
+
+def colorize(text):
+    """Add color to a board character based on what it is.
+
+    - Numbers (available spots): dim gray so they're subtle
+    - X marks: bold cyan so they pop
+    - O marks: bold red so they're clearly different from X
+    - Anything else: no color
+    """
+    if text == "X":
+        return BOLD + CYAN + text + RESET
+    elif text == "O":
+        return BOLD + RED + text + RESET
+    elif text in "123456789":
+        return DIM + text + RESET
+    return text
+
+
+# =========================
+# --- Display Functions ---
+# =========================
 
 def clear_screen():
     """Clear the terminal screen so the board doesn't scroll.
@@ -25,14 +69,26 @@ def clear_screen():
 
 
 def display_board(board):
-    """Show the tic-tac-toe board in a nice format with box borders."""
+    """Show the tic-tac-toe board in a large, colorful format.
+
+    Each cell is 3 rows tall and 5 characters wide so the board
+    is easy to read. Colors make X, O, and numbers visually distinct.
+    """
     print()
-    print("  ╔═══╦═══╦═══╗")
+    print("  ╔═════╦═════╦═════╗")
     for i, row in enumerate(board):
-        print("  ║ " + row[0] + " ║ " + row[1] + " ║ " + row[2] + " ║")
+        # Top padding row (empty space inside each cell)
+        print("  ║     ║     ║     ║")
+        # Middle row with the actual mark/number, centered
+        c0 = colorize(row[0])
+        c1 = colorize(row[1])
+        c2 = colorize(row[2])
+        print(f"  ║  {c0}  ║  {c1}  ║  {c2}  ║")
+        # Bottom padding row
+        print("  ║     ║     ║     ║")
         if i < 2:
-            print("  ╠═══╬═══╬═══╣")
-    print("  ╚═══╩═══╩═══╝")
+            print("  ╠═════╬═════╬═════╣")
+    print("  ╚═════╩═════╩═════╝")
     print()
 
 
@@ -46,14 +102,39 @@ def display_scoreboard(names, scores):
     so the top and bottom borders always match.
     """
     # Build the content line first so we can measure its length
-    content = f" {names['X']}: {scores['X']}  vs  {names['O']}: {scores['O']}  Ties: {scores['tie']} "
-    # Calculate how wide the box needs to be
-    width = len(content)
+    x_name = BOLD + CYAN + names['X'] + RESET
+    o_name = BOLD + RED + names['O'] + RESET
+    # Plain version (no color codes) to measure actual visible width
+    plain = f" {names['X']}: {scores['X']}  vs  {names['O']}: {scores['O']}  Ties: {scores['tie']} "
+    width = len(plain)
+    # Colored version for display
+    colored = f" {x_name}: {scores['X']}  vs  {o_name}: {scores['O']}  Ties: {scores['tie']} "
     # Build the box with matching borders
     print("  ┌" + "─" * width + "┐")
-    print("  │" + content + "│")
+    print("  │" + colored + "│")
     print("  └" + "─" * width + "┘")
 
+
+def display_banner(lines):
+    """Display text inside a neat box banner.
+
+    Takes a list of strings and wraps them in a box.
+    Automatically sizes the box to fit the longest line.
+    No emojis in the box to avoid alignment issues.
+    """
+    # Find the longest line to set the box width
+    width = max(len(line) for line in lines) + 4  # +4 for padding
+    print("  ╔" + "═" * width + "╗")
+    for line in lines:
+        # Center each line within the box
+        padded = line.center(width)
+        print("  ║" + padded + "║")
+    print("  ╚" + "═" * width + "╝")
+
+
+# =========================
+# --- Game Logic ---
+# =========================
 
 def get_player_names():
     """Ask both players for their names at the start.
@@ -62,8 +143,8 @@ def get_player_names():
     A dictionary is like a labeled box - you look up a value by its label (key).
     """
     print("=== Player Setup ===")
-    name_x = input("Enter name for Player X: ").strip()
-    name_o = input("Enter name for Player O: ").strip()
+    name_x = input(f"Enter name for Player {BOLD}{CYAN}X{RESET}: ").strip()
+    name_o = input(f"Enter name for Player {BOLD}{RED}O{RESET}: ").strip()
 
     # If they left a name blank, use a default
     if not name_x:
@@ -94,8 +175,12 @@ def get_move(board, player, player_name):
     This function uses a while loop - it keeps asking until
     the player gives a good answer (a number 1-9 that isn't taken).
     """
+    # Color the player's mark in the prompt
+    color = CYAN if player == "X" else RED
+    colored_mark = BOLD + color + player + RESET
+
     while True:
-        move = input(f"{player_name} ({player}), pick a spot (1-9): ")
+        move = input(f"{player_name} ({colored_mark}), pick a spot (1-9): ")
 
         # Check if they typed a number
         if move not in "123456789" or len(move) != 1:
@@ -218,13 +303,14 @@ def play_game(board, names, scores):
         # Check if the current player just won!
         winner = check_winner(board)
         if winner:
-            print(f"🎉 {names[winner]} ({winner}) wins! Congratulations! 🎉")
+            color = CYAN if winner == "X" else RED
+            print(f"{GREEN}*** {BOLD}{color}{names[winner]}{RESET}{GREEN} ({BOLD}{color}{winner}{RESET}{GREEN}) wins! Congratulations! ***{RESET}")
             scores[winner] += 1
             return
 
         # Check if the board is full (tie game)
         if check_tie(board):
-            print("It's a tie! Great game, everyone!")
+            print(f"{YELLOW}It's a tie! Great game, everyone!{RESET}")
             scores["tie"] += 1
             return
 
@@ -241,10 +327,7 @@ def play_game(board, names, scores):
 # ======================
 
 clear_screen()
-print("╔═══════════════════════╗")
-print("║   Welcome to          ║")
-print("║   TIC-TAC-TOE! 🎮    ║")
-print("╚═══════════════════════╝")
+display_banner(["Welcome to", "TIC-TAC-TOE!"])
 print()
 
 # Get player names
@@ -265,7 +348,8 @@ while playing:
     print("=== Tic-Tac-Toe ===")
     display_scoreboard(names, scores)
     display_board(board)
-    print(f"{names['X']} (X) goes first!")
+    color_x = BOLD + CYAN + names['X'] + RESET
+    print(f"{color_x} (X) goes first!")
     print()
 
     # Play one complete game
@@ -279,9 +363,7 @@ while playing:
 
 # Goodbye message
 clear_screen()
-print("╔═══════════════════════════╗")
-print("║   Thanks for playing! 🎉  ║")
-print("╚═══════════════════════════╝")
+display_banner(["Thanks for playing!"])
 print()
 print("=== Final Scores ===")
 display_scoreboard(names, scores)
