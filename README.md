@@ -30,7 +30,7 @@ Requires **Python 3.10+**.
 - Input validation (must be 1-9, can't play in taken spots)
 
 ### Weekend 3: Winning & Ending
-**Status:** Not started
+**Status:** Complete
 
 **Python Concepts:** Functions, returning values, boolean logic
 
