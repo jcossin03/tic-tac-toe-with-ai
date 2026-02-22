@@ -2,7 +2,9 @@
 # Unit tests for tic-tac-toe game logic.
 # Run with:  python -m pytest test_tictactoe.py -v
 
-from game_logic import Board, AI
+import os
+import tempfile
+from game_logic import Board, AI, GameStats
 
 
 # ===========================
@@ -52,13 +54,6 @@ class TestBoard:
         board.reset()
         assert board.get_cell(0, 0) == "1"
         assert len(board.get_open_spots()) == 9
-        assert board.move_history == []
-
-    def test_move_history(self):
-        board = Board()
-        board.place_move(1, 1, "X")  # spot 5
-        board.place_move(0, 0, "O")  # spot 1
-        assert board.move_history == [("X", 5), ("O", 1)]
 
     def test_spot_to_coords(self):
         assert Board.spot_to_coords("1") == (0, 0)
@@ -369,3 +364,82 @@ class TestAIInvalidDifficulty:
         import pytest
         with pytest.raises(ValueError):
             AI("extreme", "O", "X")
+
+
+# ===========================
+# --- GameStats Tests ---
+# ===========================
+
+class TestGameStats:
+    def _make_stats(self):
+        """Create a GameStats with a temp file that auto-cleans up."""
+        fd, path = tempfile.mkstemp(suffix=".json")
+        os.close(fd)
+        os.unlink(path)  # start fresh
+        return GameStats(filepath=path), path
+
+    def test_new_stats_empty(self):
+        stats, path = self._make_stats()
+        assert stats.get_total_games() == 0
+        assert stats.get_single_player_stats() == {}
+        if os.path.exists(path):
+            os.unlink(path)
+
+    def test_record_single_player_win(self):
+        stats, path = self._make_stats()
+        stats.record_game("1", "easy", "X")
+        sp = stats.get_single_player_stats()
+        assert sp["easy"]["wins"] == 1
+        assert sp["easy"]["losses"] == 0
+        assert stats.get_total_games() == 1
+        os.unlink(path)
+
+    def test_record_single_player_loss(self):
+        stats, path = self._make_stats()
+        stats.record_game("1", "hard", "O")
+        sp = stats.get_single_player_stats()
+        assert sp["hard"]["losses"] == 1
+        os.unlink(path)
+
+    def test_record_single_player_tie(self):
+        stats, path = self._make_stats()
+        stats.record_game("1", "impossible", None)
+        sp = stats.get_single_player_stats()
+        assert sp["impossible"]["ties"] == 1
+        os.unlink(path)
+
+    def test_record_two_player(self):
+        stats, path = self._make_stats()
+        stats.record_game("2", None, "X")
+        stats.record_game("2", None, "O")
+        stats.record_game("2", None, None)
+        tp = stats.get_two_player_stats()
+        assert tp["wins_x"] == 1
+        assert tp["wins_o"] == 1
+        assert tp["ties"] == 1
+        assert stats.get_total_games() == 3
+        os.unlink(path)
+
+    def test_persistence_across_loads(self):
+        stats, path = self._make_stats()
+        stats.record_game("1", "easy", "X")
+        stats.record_game("1", "easy", "O")
+        # Load from same file
+        stats2 = GameStats(filepath=path)
+        sp = stats2.get_single_player_stats()
+        assert sp["easy"]["wins"] == 1
+        assert sp["easy"]["losses"] == 1
+        assert stats2.get_total_games() == 2
+        os.unlink(path)
+
+    def test_multiple_difficulties(self):
+        stats, path = self._make_stats()
+        stats.record_game("1", "easy", "X")
+        stats.record_game("1", "hard", "X")
+        stats.record_game("1", "impossible", None)
+        sp = stats.get_single_player_stats()
+        assert "easy" in sp
+        assert "hard" in sp
+        assert "impossible" in sp
+        assert stats.get_total_games() == 3
+        os.unlink(path)

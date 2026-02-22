@@ -72,6 +72,17 @@ Requires **Python 3.10+**.
 - Winning line highlighted with green background
 - 43 unit tests covering board, win detection, ties, and all AI levels
 
+### Weekend 8: New Game Modes & Stats
+**Status:** Complete
+
+**Python Concepts:** JSON file I/O, persistent storage, multiple AI instances
+
+- First-move selection — choose whether X or O goes first
+- AI vs AI watch mode — pick difficulties for both sides and watch them play
+- Post-game move history — see every move in order after the game ends
+- Persistent statistics — wins/losses/ties saved to `stats.json` across sessions
+- Lifetime stats dashboard shown at startup and exit
+
 ## Future Improvements
 
 A backlog of ideas for future weekends, organized by category.
@@ -81,8 +92,7 @@ A backlog of ideas for future weekends, organized by category.
 - [x] **Unbeatable AI (Minimax)** — Implement the minimax algorithm as a third "Impossible" difficulty that never loses
 - [x] **Medium difficulty** — Bridge the gap between Easy and Hard (e.g., 50% chance of making the optimal move)
 - [ ] **4x4 or 5x5 board** — Let players choose board size for more strategic variety
-- [ ] **First-move selection** — Let the player choose who goes first instead of X always starting
-- [ ] **Undo/redo moves** — Maintain a move history stack so players can take back moves
+- [x] **First-move selection** — Let the player choose who goes first instead of X always starting
 
 ### AI & Intelligence
 
@@ -92,8 +102,8 @@ A backlog of ideas for future weekends, organized by category.
 ### UI/UX Improvements
 
 - [x] **Highlight winning line** — When someone wins, highlight the three winning cells in a different color
-- [ ] **Move history display** — Show a post-game summary of all moves in order for strategy review
-- [ ] **Persistent game statistics** — Save stats (wins, losses, ties per difficulty) to a JSON file so they survive between sessions
+- [x] **Move history display** — Show a post-game summary of all moves in order for strategy review
+- [x] **Persistent game statistics** — Save stats (wins, losses, ties per difficulty) to a JSON file so they survive between sessions
 - [ ] **Animated board transitions** — Add frame-by-frame animations when placing marks instead of instant redraws
 - [ ] **Sound effects** — Terminal bell or `playsound` library for move placement, wins, and ties
 
@@ -107,7 +117,7 @@ A backlog of ideas for future weekends, organized by category.
 
 - [ ] **Tournament mode** — Best-of-3 or best-of-5 series with bracket-style progression
 - [ ] **Timed mode** — Each player gets a time limit per move (e.g., 10 seconds)
-- [ ] **AI vs AI mode** — Watch two AI players at different difficulties play each other
+- [x] **AI vs AI mode** — Watch two AI players at different difficulties play each other
 
 ### Platform & Distribution
 
@@ -130,7 +140,7 @@ A backlog of ideas for future weekends, organized by category.
 tic-tac-toe/
   tictactoe.py        # Main game file (terminal UI)
   game_logic.py       # Core game engine (Board and AI classes)
-  test_tictactoe.py   # Unit tests (43 tests)
+  test_tictactoe.py   # Unit tests
   README.md           # This file
   .gitignore          # Git ignore rules for Python
 ```
