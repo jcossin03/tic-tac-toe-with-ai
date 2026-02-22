@@ -59,26 +59,39 @@ Requires **Python 3.10+**.
 - Computer "thinking" animation
 - Difficulty display during gameplay
 
+### Weekend 7: Refactor & AI Upgrades
+**Status:** Complete
+
+**Python Concepts:** Classes, modules, minimax algorithm, recursion, unit testing
+
+- Refactored game logic into `Board` and `AI` classes in `game_logic.py`
+- Separated core logic from terminal I/O for testability
+- Added minimax algorithm for unbeatable "Impossible" difficulty
+- Added "Medium" difficulty (50/50 strategic vs random)
+- AI now explains its moves after each turn
+- Winning line highlighted with green background
+- 43 unit tests covering board, win detection, ties, and all AI levels
+
 ## Future Improvements
 
 A backlog of ideas for future weekends, organized by category.
 
 ### Gameplay Enhancements
 
-- [ ] **Unbeatable AI (Minimax)** — Implement the minimax algorithm as a third "Impossible" difficulty that never loses
-- [ ] **Medium difficulty** — Bridge the gap between Easy and Hard (e.g., 50% chance of making the optimal move)
+- [x] **Unbeatable AI (Minimax)** — Implement the minimax algorithm as a third "Impossible" difficulty that never loses
+- [x] **Medium difficulty** — Bridge the gap between Easy and Hard (e.g., 50% chance of making the optimal move)
 - [ ] **4x4 or 5x5 board** — Let players choose board size for more strategic variety
 - [ ] **First-move selection** — Let the player choose who goes first instead of X always starting
 - [ ] **Undo/redo moves** — Maintain a move history stack so players can take back moves
 
 ### AI & Intelligence
 
-- [ ] **AI move explanation** — After each AI move, optionally show *why* it chose that move ("Blocking your win!", "Taking the center")
+- [x] **AI move explanation** — After each AI move, optionally show *why* it chose that move ("Blocking your win!", "Taking the center")
 - [ ] **Difficulty auto-adjustment** — Track win/loss ratio and suggest or auto-adjust difficulty when a player is dominating or struggling
 
 ### UI/UX Improvements
 
-- [ ] **Highlight winning line** — When someone wins, highlight the three winning cells in a different color
+- [x] **Highlight winning line** — When someone wins, highlight the three winning cells in a different color
 - [ ] **Move history display** — Show a post-game summary of all moves in order for strategy review
 - [ ] **Persistent game statistics** — Save stats (wins, losses, ties per difficulty) to a JSON file so they survive between sessions
 - [ ] **Animated board transitions** — Add frame-by-frame animations when placing marks instead of instant redraws
@@ -86,8 +99,8 @@ A backlog of ideas for future weekends, organized by category.
 
 ### Architecture & Code Quality
 
-- [ ] **Unit tests** — Create `test_tictactoe.py` with tests for win detection, AI moves, board state, and input validation
-- [ ] **Refactor into classes** — Extract `Game`, `Board`, `Player`, and `AI` classes from the procedural code
+- [x] **Unit tests** — Create `test_tictactoe.py` with tests for win detection, AI moves, board state, and input validation
+- [x] **Refactor into classes** — Extract `Game`, `Board`, `Player`, and `AI` classes from the procedural code
 - [ ] **Configuration file** — Move hardcoded values (board size, thinking delay, colors) into a config dict or file
 
 ### New Game Modes
@@ -115,8 +128,9 @@ A backlog of ideas for future weekends, organized by category.
 
 ```
 tic-tac-toe/
-  tictactoe.py        # Main game file
-  test_tictactoe.py   # Unit tests
+  tictactoe.py        # Main game file (terminal UI)
+  game_logic.py       # Core game engine (Board and AI classes)
+  test_tictactoe.py   # Unit tests (43 tests)
   README.md           # This file
   .gitignore          # Git ignore rules for Python
 ```
