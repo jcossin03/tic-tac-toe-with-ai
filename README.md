@@ -83,6 +83,17 @@ Requires **Python 3.10+**.
 - Persistent statistics — wins/losses/ties saved to `stats.json` across sessions
 - Lifetime stats dashboard shown at startup and exit
 
+### Weekend 9: Tournament, Timed Mode & Config
+**Status:** Complete
+
+**Python Concepts:** Threading, configuration patterns, state machines
+
+- Tournament mode — best-of-3/5/7 series with visual bracket progress
+- Timed mode — configurable per-move countdown (5/10/15 seconds) with auto-move on timeout
+- Difficulty auto-adjustment — suggests harder/easier difficulty based on win rate
+- Configuration system — `GameConfig` class centralizes all hardcoded values
+- 21 new unit tests (70 total, all passing)
+
 ## Future Improvements
 
 A backlog of ideas for future weekends, organized by category.
@@ -97,7 +108,7 @@ A backlog of ideas for future weekends, organized by category.
 ### AI & Intelligence
 
 - [x] **AI move explanation** — After each AI move, optionally show *why* it chose that move ("Blocking your win!", "Taking the center")
-- [ ] **Difficulty auto-adjustment** — Track win/loss ratio and suggest or auto-adjust difficulty when a player is dominating or struggling
+- [x] **Difficulty auto-adjustment** — Track win/loss ratio and suggest or auto-adjust difficulty when a player is dominating or struggling
 
 ### UI/UX Improvements
 
@@ -111,12 +122,12 @@ A backlog of ideas for future weekends, organized by category.
 
 - [x] **Unit tests** — Create `test_tictactoe.py` with tests for win detection, AI moves, board state, and input validation
 - [x] **Refactor into classes** — Extract `Game`, `Board`, `Player`, and `AI` classes from the procedural code
-- [ ] **Configuration file** — Move hardcoded values (board size, thinking delay, colors) into a config dict or file
+- [x] **Configuration file** — Move hardcoded values (board size, thinking delay, colors) into a config dict or file
 
 ### New Game Modes
 
-- [ ] **Tournament mode** — Best-of-3 or best-of-5 series with bracket-style progression
-- [ ] **Timed mode** — Each player gets a time limit per move (e.g., 10 seconds)
+- [x] **Tournament mode** — Best-of-3 or best-of-5 series with bracket-style progression
+- [x] **Timed mode** — Each player gets a time limit per move (e.g., 10 seconds)
 - [x] **AI vs AI mode** — Watch two AI players at different difficulties play each other
 
 ### Platform & Distribution
