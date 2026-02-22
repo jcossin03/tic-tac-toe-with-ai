@@ -10,7 +10,7 @@ import os
 import sys
 import time
 
-from game_logic import Board, AI
+from game_logic import Board, AI, GameStats
 
 # Make sure the terminal can display our fancy box characters (╔, ═, etc.)
 # This tells Python to use UTF-8 encoding for output.
@@ -173,20 +173,21 @@ def display_banner(lines):
 # =========================
 
 def get_game_mode():
-    """Ask the player to choose 1-player or 2-player mode.
+    """Ask the player to choose a game mode.
 
-    Returns "1" for single player (vs computer) or "2" for two players.
+    Returns "1" for single player, "2" for two players, or "3" for AI vs AI.
     Uses a while loop to keep asking until we get a valid answer.
     """
     print("=== Game Mode ===")
     print(f"  {BOLD}1{RESET} - Single Player (vs Computer)")
     print(f"  {BOLD}2{RESET} - Two Players")
+    print(f"  {BOLD}3{RESET} - AI vs AI (Watch Mode)")
     print()
     while True:
-        choice = input("Choose mode (1 or 2): ").strip()
-        if choice in ["1", "2"]:
+        choice = input("Choose mode (1, 2, or 3): ").strip()
+        if choice in ["1", "2", "3"]:
             return choice
-        print("Please enter 1 or 2.")
+        print("Please enter 1, 2, or 3.")
 
 
 def get_difficulty():
@@ -225,12 +226,32 @@ def get_difficulty_label(difficulty):
     return labels.get(difficulty, difficulty)
 
 
+def get_first_player():
+    """Ask who should go first.
+
+    Returns "X" or "O".
+    """
+    print()
+    print("=== Who Goes First? ===")
+    print(f"  {BOLD}1{RESET} - {BOLD}{CYAN}X{RESET} goes first")
+    print(f"  {BOLD}2{RESET} - {BOLD}{RED}O{RESET} goes first")
+    print()
+    while True:
+        choice = input("Choose (1 or 2): ").strip()
+        if choice == "1":
+            return "X"
+        elif choice == "2":
+            return "O"
+        print("Please enter 1 or 2.")
+
+
 def get_player_names(game_mode):
     """Ask players for their names based on game mode.
 
     In 1-player mode, only ask for the human's name.
     The computer gets a fun name automatically.
     In 2-player mode, ask both players for names.
+    In AI vs AI mode, both are named by their difficulty.
 
     Returns a dictionary that maps 'X' and 'O' to player names.
     """
@@ -243,6 +264,8 @@ def get_player_names(game_mode):
             name_x = "Player X"
         name_o = "Computer"
         return {"X": name_x, "O": name_o}
+    elif game_mode == "3":
+        return {"X": "AI-X", "O": "AI-O"}
     else:
         name_x = input(f"Enter name for Player {BOLD}{CYAN}X{RESET}: ").strip()
         name_o = input(f"Enter name for Player {BOLD}{RED}O{RESET}: ").strip()
@@ -307,33 +330,59 @@ def play_again():
             print("Please enter 'y' for yes or 'n' for no.")
 
 
-def play_game(board, names, scores, game_mode, difficulty, ai=None):
+def display_move_history(move_log, names):
+    """Show a post-game summary of all moves in order."""
+    if not move_log:
+        return
+    print("=== Move History ===")
+    for i, (player, spot) in enumerate(move_log, 1):
+        color = CYAN if player == "X" else RED
+        mark = BOLD + color + player + RESET
+        print(f"  {DIM}{i:2d}.{RESET} {names[player]} ({mark}) -> spot {spot}")
+    print()
+
+
+def play_game(board, names, scores, game_mode, difficulty, ai=None, ai_x=None, first_player="X"):
     """Play one complete game of tic-tac-toe.
 
     This function contains the turn-by-turn game loop.
     It updates the scores dictionary when the game ends.
     In 1-player mode, the computer automatically takes its turn.
+    In AI vs AI mode, both players are controlled by AI.
+    Returns the winner ("X", "O") or None (tie).
     """
-    current_player = "X"
+    current_player = first_player
+    move_log = []
 
     # The game loop - keeps going for up to 9 turns (the whole board)
     for turn in range(9):
 
         # Decide if this turn is a human or computer
-        is_computer_turn = (game_mode == "1" and current_player == "O")
+        is_computer_turn = False
+        active_ai = None
+        if game_mode == "3":
+            # AI vs AI mode - both sides are computer
+            is_computer_turn = True
+            active_ai = ai_x if current_player == "X" else ai
+        elif game_mode == "1" and current_player == "O":
+            is_computer_turn = True
+            active_ai = ai
 
         if is_computer_turn:
-            # Computer's turn - pick a move using the AI object
-            print(f"{MAGENTA}{names['O']} is thinking...{RESET}")
-            time.sleep(0.8)  # Short pause so it feels like the computer is thinking
+            # Computer's turn
+            color = CYAN if current_player == "X" else RED
+            print(f"{MAGENTA}{names[current_player]} is thinking...{RESET}")
+            time.sleep(0.8 if game_mode == "1" else 0.5)
 
-            row, col = ai.get_move(board)
+            row, col = active_ai.get_move(board)
         else:
             # Human's turn - ask for input
             row, col = get_move(board, current_player, names[current_player])
 
         # Place their mark on the board
         board.place_move(row, col, current_player)
+        spot_number = Board.coords_to_spot(row, col)
+        move_log.append((current_player, spot_number))
 
         # Clear screen and redraw everything
         clear_screen()
@@ -341,6 +390,8 @@ def play_game(board, names, scores, game_mode, difficulty, ai=None):
         if game_mode == "1":
             diff_label = get_difficulty_label(difficulty)
             print(f"  Mode: vs Computer ({diff_label})")
+        elif game_mode == "3":
+            print(f"  Mode: AI vs AI (watching)")
         display_scoreboard(names, scores)
 
         # Check if the current player just won!
@@ -351,23 +402,25 @@ def play_game(board, names, scores, game_mode, difficulty, ai=None):
 
         # Show what the computer played (and why)
         if is_computer_turn:
-            spot_number = Board.coords_to_spot(row, col)
-            print(f"{MAGENTA}{names['O']} played spot {spot_number}{RESET}")
-            if ai.last_explanation:
-                print(f"  {DIM}({ai.last_explanation}){RESET}")
+            color = CYAN if current_player == "X" else RED
+            print(f"{MAGENTA}{names[current_player]} played spot {spot_number}{RESET}")
+            if active_ai.last_explanation:
+                print(f"  {DIM}({active_ai.last_explanation}){RESET}")
             print()
 
         if winner:
             color = CYAN if winner == "X" else RED
             print(f"{GREEN}*** {BOLD}{color}{names[winner]}{RESET}{GREEN} ({BOLD}{color}{winner}{RESET}{GREEN}) wins! Congratulations! ***{RESET}")
             scores[winner] += 1
-            return
+            display_move_history(move_log, names)
+            return winner
 
         # Check if the board is full (tie game)
         if board.is_full():
             print(f"{YELLOW}It's a tie! Great game, everyone!{RESET}")
             scores["tie"] += 1
-            return
+            display_move_history(move_log, names)
+            return None
 
         # Switch to the other player
         if current_player == "X":
@@ -375,28 +428,81 @@ def play_game(board, names, scores, game_mode, difficulty, ai=None):
         else:
             current_player = "X"
 
+        # In AI vs AI mode, pause briefly so the viewer can follow
+        if game_mode == "3":
+            input(f"{DIM}Press Enter to continue...{RESET}")
+
 
 # ======================
 # --- Program Start! ---
 # ======================
+
+def display_lifetime_stats(stats):
+    """Show a summary of lifetime game statistics."""
+    sp = stats.get_single_player_stats()
+    tp = stats.get_two_player_stats()
+    total = stats.get_total_games()
+    if total == 0:
+        return
+
+    print("=== Lifetime Stats ===")
+    if sp:
+        print("  Single Player:")
+        for diff in ["easy", "medium", "hard", "impossible"]:
+            if diff in sp:
+                e = sp[diff]
+                games = e["wins"] + e["losses"] + e["ties"]
+                label = get_difficulty_label(diff)
+                print(f"    {label}: {e['wins']}W / {e['losses']}L / {e['ties']}T ({games} games)")
+    tp_total = tp.get("wins_x", 0) + tp.get("wins_o", 0) + tp.get("ties", 0)
+    if tp_total > 0:
+        print(f"  Two Player: X {tp['wins_x']}W / O {tp['wins_o']}W / {tp['ties']}T ({tp_total} games)")
+    print(f"  Total games played: {total}")
+    print()
+
 
 if __name__ == "__main__":
     clear_screen()
     display_banner(["Welcome to", "TIC-TAC-TOE!"])
     print()
 
-    # Choose game mode: 1 player or 2 players
+    # Load persistent stats
+    stats = GameStats()
+
+    # Show lifetime stats if any games have been played
+    display_lifetime_stats(stats)
+
+    # Choose game mode: 1 player, 2 players, or AI vs AI
     game_mode = get_game_mode()
 
-    # If single player, choose difficulty
+    # If single player or AI vs AI, choose difficulty
     difficulty = None
+    difficulty_x = None
     ai = None
+    ai_x = None
     if game_mode == "1":
         difficulty = get_difficulty()
         ai = AI(difficulty, mark="O", opponent_mark="X")
+    elif game_mode == "3":
+        print()
+        print(f"=== {BOLD}{CYAN}AI-X{RESET} Difficulty ===")
+        difficulty_x = get_difficulty()
+        ai_x = AI(difficulty_x, mark="X", opponent_mark="O")
+        print()
+        print(f"=== {BOLD}{RED}AI-O{RESET} Difficulty ===")
+        difficulty = get_difficulty()
+        ai = AI(difficulty, mark="O", opponent_mark="X")
 
-    # Get player names (computer name is automatic in 1-player mode)
+    # Get player names (automatic in AI vs AI mode)
     names = get_player_names(game_mode)
+    if game_mode == "3":
+        names["X"] = f"AI-X ({difficulty_x.title()})"
+        names["O"] = f"AI-O ({difficulty.title()})"
+
+    # Choose who goes first
+    first_player = "X"
+    if game_mode in ["1", "2"]:
+        first_player = get_first_player()
 
     # Scores are stored in a dictionary - easy to look up by key
     scores = {"X": 0, "O": 0, "tie": 0}
@@ -413,14 +519,22 @@ if __name__ == "__main__":
         if game_mode == "1":
             diff_label = get_difficulty_label(difficulty)
             print(f"  Mode: vs Computer ({diff_label})")
+        elif game_mode == "3":
+            print(f"  Mode: AI vs AI")
         display_scoreboard(names, scores)
         display_board(board)
-        color_x = BOLD + CYAN + names['X'] + RESET
-        print(f"{color_x} (X) goes first!")
+        color = CYAN if first_player == "X" else RED
+        starter_name = BOLD + color + names[first_player] + RESET
+        print(f"{starter_name} ({first_player}) goes first!")
         print()
 
         # Play one complete game
-        play_game(board, names, scores, game_mode, difficulty, ai)
+        winner = play_game(board, names, scores, game_mode, difficulty,
+                           ai=ai, ai_x=ai_x, first_player=first_player)
+
+        # Record result in persistent stats
+        if game_mode != "3":
+            stats.record_game(game_mode, difficulty, winner)
 
         # Show final score and ask to play again
         print()
@@ -435,4 +549,5 @@ if __name__ == "__main__":
     print("=== Final Scores ===")
     display_scoreboard(names, scores)
     print()
+    display_lifetime_stats(stats)
     print("See you next time!")

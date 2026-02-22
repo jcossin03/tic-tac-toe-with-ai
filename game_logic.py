@@ -3,6 +3,8 @@
 # This module has NO print statements, NO input calls, and NO color codes.
 # It can be used by any frontend: terminal, web, tests, etc.
 
+import json
+import os
 import random
 import math
 
@@ -16,7 +18,6 @@ class Board:
             ["4", "5", "6"],
             ["7", "8", "9"]
         ]
-        self.move_history = []
 
     def reset(self):
         """Clear the board for a new game."""
@@ -25,7 +26,6 @@ class Board:
             ["4", "5", "6"],
             ["7", "8", "9"]
         ]
-        self.move_history = []
 
     def get_cell(self, row, col):
         return self.cells[row][col]
@@ -35,8 +35,6 @@ class Board:
         if self.cells[row][col] in ["X", "O"]:
             return False
         self.cells[row][col] = player
-        spot_number = row * 3 + col + 1
-        self.move_history.append((player, spot_number))
         return True
 
     def is_valid_move(self, row, col):
@@ -111,7 +109,6 @@ class Board:
         """Return a deep copy of this board (for AI simulations)."""
         new_board = Board()
         new_board.cells = [row[:] for row in self.cells]
-        new_board.move_history = self.move_history[:]
         return new_board
 
     @staticmethod
@@ -294,3 +291,70 @@ class AI:
                 return (row, col)
             board.cells[row][col] = original
         return None
+
+
+class GameStats:
+    """Persistent game statistics saved to a JSON file."""
+
+    DEFAULT_FILE = "stats.json"
+
+    def __init__(self, filepath=None):
+        self.filepath = filepath or self.DEFAULT_FILE
+        self.data = self._load()
+
+    def _load(self):
+        """Load stats from file, or return empty structure."""
+        if os.path.exists(self.filepath):
+            with open(self.filepath, "r") as f:
+                return json.load(f)
+        return {"single_player": {}, "two_player": {"wins_x": 0, "wins_o": 0, "ties": 0}}
+
+    def save(self):
+        """Write current stats to file."""
+        with open(self.filepath, "w") as f:
+            json.dump(self.data, f, indent=2)
+
+    def record_game(self, game_mode, difficulty, winner):
+        """Record the result of a game.
+
+        game_mode: "1" (single player) or "2" (two player)
+        difficulty: AI difficulty string, or None for two-player
+        winner: "X", "O", or None (tie)
+        """
+        if game_mode == "1":
+            sp = self.data["single_player"]
+            if difficulty not in sp:
+                sp[difficulty] = {"wins": 0, "losses": 0, "ties": 0}
+            entry = sp[difficulty]
+            if winner == "X":
+                entry["wins"] += 1
+            elif winner == "O":
+                entry["losses"] += 1
+            else:
+                entry["ties"] += 1
+        else:
+            tp = self.data["two_player"]
+            if winner == "X":
+                tp["wins_x"] += 1
+            elif winner == "O":
+                tp["wins_o"] += 1
+            else:
+                tp["ties"] += 1
+        self.save()
+
+    def get_single_player_stats(self):
+        """Return the single player stats dict."""
+        return self.data.get("single_player", {})
+
+    def get_two_player_stats(self):
+        """Return the two player stats dict."""
+        return self.data.get("two_player", {"wins_x": 0, "wins_o": 0, "ties": 0})
+
+    def get_total_games(self):
+        """Return the total number of games played across all modes."""
+        total = 0
+        for entry in self.data.get("single_player", {}).values():
+            total += entry["wins"] + entry["losses"] + entry["ties"]
+        tp = self.data.get("two_player", {})
+        total += tp.get("wins_x", 0) + tp.get("wins_o", 0) + tp.get("ties", 0)
+        return total
