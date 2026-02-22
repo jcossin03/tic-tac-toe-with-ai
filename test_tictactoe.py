@@ -4,7 +4,8 @@
 
 import os
 import tempfile
-from game_logic import Board, AI, GameStats, GameConfig, Tournament
+import shutil
+from game_logic import Board, AI, GameStats, GameConfig, Tournament, GameReplay
 
 
 # ===========================
@@ -598,3 +599,155 @@ class TestDifficultySuggestion:
         assert stats.get_difficulty_suggestion("hard") is None
         if os.path.exists(path):
             os.unlink(path)
+
+
+# ===========================
+# --- GameReplay Tests ---
+# ===========================
+
+class TestGameReplay:
+    def _make_replay_dir(self):
+        d = tempfile.mkdtemp()
+        return d
+
+    def test_record_and_save(self):
+        replay = GameReplay()
+        replay.record_move("X", 5)
+        replay.record_move("O", 1)
+        replay.record_move("X", 9)
+        replay.set_metadata({"X": "Alice", "O": "Bob"}, "1", "easy", "X")
+        d = self._make_replay_dir()
+        old_dir = GameReplay.REPLAY_DIR
+        GameReplay.REPLAY_DIR = d
+        try:
+            filepath = replay.save("test_replay.json")
+            assert os.path.exists(filepath)
+            loaded = GameReplay.load(filepath)
+            assert len(loaded.moves) == 3
+            assert loaded.moves[0] == {"player": "X", "spot": 5}
+            assert loaded.winner == "X"
+            assert loaded.names["X"] == "Alice"
+        finally:
+            GameReplay.REPLAY_DIR = old_dir
+            shutil.rmtree(d)
+
+    def test_list_replays_empty(self):
+        d = self._make_replay_dir()
+        old_dir = GameReplay.REPLAY_DIR
+        GameReplay.REPLAY_DIR = os.path.join(d, "nonexistent")
+        try:
+            assert GameReplay.list_replays() == []
+        finally:
+            GameReplay.REPLAY_DIR = old_dir
+            shutil.rmtree(d)
+
+    def test_list_replays_finds_files(self):
+        d = self._make_replay_dir()
+        old_dir = GameReplay.REPLAY_DIR
+        GameReplay.REPLAY_DIR = d
+        try:
+            # Create some fake replay files
+            for name in ["replay_a.json", "replay_b.json", "not_json.txt"]:
+                with open(os.path.join(d, name), "w") as f:
+                    f.write("{}")
+            replays = GameReplay.list_replays()
+            assert len(replays) == 2
+            assert all(f.endswith(".json") for f in replays)
+        finally:
+            GameReplay.REPLAY_DIR = old_dir
+            shutil.rmtree(d)
+
+    def test_metadata_tie(self):
+        replay = GameReplay()
+        replay.record_move("X", 1)
+        replay.set_metadata({"X": "A", "O": "B"}, "2", None, None)
+        assert replay.winner is None
+        assert replay.difficulty is None
+
+
+# ===========================
+# --- Streak & Achievement Tests ---
+# ===========================
+
+class TestStreaksAndAchievements:
+    def _make_stats(self):
+        fd, path = tempfile.mkstemp(suffix=".json")
+        os.close(fd)
+        os.unlink(path)
+        return GameStats(filepath=path), path
+
+    def test_streak_increments_on_wins(self):
+        stats, path = self._make_stats()
+        stats.record_game("1", "easy", "X")
+        stats.record_game("1", "easy", "X")
+        stats.record_game("1", "easy", "X")
+        streaks = stats.get_streaks()
+        assert streaks["current"] == 3
+        assert streaks["best"] == 3
+        os.unlink(path)
+
+    def test_streak_resets_on_loss(self):
+        stats, path = self._make_stats()
+        stats.record_game("1", "easy", "X")
+        stats.record_game("1", "easy", "X")
+        stats.record_game("1", "easy", "O")  # loss
+        streaks = stats.get_streaks()
+        assert streaks["current"] == 0
+        assert streaks["best"] == 2
+        os.unlink(path)
+
+    def test_streak_resets_on_tie(self):
+        stats, path = self._make_stats()
+        stats.record_game("1", "easy", "X")
+        stats.record_game("1", "easy", None)  # tie
+        streaks = stats.get_streaks()
+        assert streaks["current"] == 0
+        assert streaks["best"] == 1
+        os.unlink(path)
+
+    def test_first_win_achievement(self):
+        stats, path = self._make_stats()
+        stats.record_game("1", "easy", "X")
+        assert "first_win" in stats.get_achievements()
+        os.unlink(path)
+
+    def test_impossible_achievement(self):
+        stats, path = self._make_stats()
+        stats.record_game("1", "impossible", "X")
+        assert "first_impossible_win" in stats.get_achievements()
+        os.unlink(path)
+
+    def test_streak_3_achievement(self):
+        stats, path = self._make_stats()
+        for _ in range(3):
+            stats.record_game("1", "easy", "X")
+        assert "streak_3" in stats.get_achievements()
+        os.unlink(path)
+
+    def test_no_achievement_on_loss(self):
+        stats, path = self._make_stats()
+        stats.record_game("1", "easy", "O")
+        assert "first_win" not in stats.get_achievements()
+        os.unlink(path)
+
+    def test_all_difficulties_achievement(self):
+        stats, path = self._make_stats()
+        for diff in AI.DIFFICULTIES:
+            stats.record_game("1", diff, "X")
+        assert "all_difficulties" in stats.get_achievements()
+        os.unlink(path)
+
+    def test_get_new_achievements(self):
+        stats, path = self._make_stats()
+        old_count = len(stats.get_achievements())
+        stats.record_game("1", "easy", "X")
+        new = stats.get_new_achievements(old_count)
+        assert "first_win" in new
+        os.unlink(path)
+
+    def test_played_10_achievement(self):
+        stats, path = self._make_stats()
+        for i in range(10):
+            stats.record_game("1", "easy", "X" if i % 2 == 0 else "O")
+        assert "played_10" in stats.get_achievements()
+        os.unlink(path)
