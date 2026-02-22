@@ -10,7 +10,7 @@ import os
 import sys
 import time
 
-from game_logic import Board, AI, GameStats
+from game_logic import Board, AI, GameStats, GameConfig
 
 # Make sure the terminal can display our fancy box characters (╔, ═, etc.)
 # This tells Python to use UTF-8 encoding for output.
@@ -87,21 +87,24 @@ def display_board(board, winning_line=None):
     """
     highlight_set = set(winning_line) if winning_line else set()
 
+    cfg = GameConfig
+    pad = " " * cfg.CELL_WIDTH
+
     print()
-    print("  ╔═════╦═════╦═════╗")
+    print("  " + cfg.BOX_TOP)
     for i in range(3):
         # Top padding row (empty space inside each cell)
-        top = "  ║"
+        top = "  " + cfg.BOX_V
         for j in range(3):
             if (i, j) in highlight_set:
-                top += BG_GREEN + "     " + RESET
+                top += BG_GREEN + pad + RESET
             else:
-                top += "     "
-            top += "║"
+                top += pad
+            top += cfg.BOX_V
         print(top)
 
         # Middle row with the actual mark/number, centered
-        mid = "  ║"
+        mid = "  " + cfg.BOX_V
         for j in range(3):
             cell = board.get_cell(i, j)
             is_hl = (i, j) in highlight_set
@@ -109,22 +112,22 @@ def display_board(board, winning_line=None):
                 mid += BG_GREEN + " " + RESET + colorize(cell, highlight=True) + BG_GREEN + " " + RESET
             else:
                 mid += "  " + colorize(cell) + "  "
-            mid += "║"
+            mid += cfg.BOX_V
         print(mid)
 
         # Bottom padding row
-        bot = "  ║"
+        bot = "  " + cfg.BOX_V
         for j in range(3):
             if (i, j) in highlight_set:
-                bot += BG_GREEN + "     " + RESET
+                bot += BG_GREEN + pad + RESET
             else:
-                bot += "     "
-            bot += "║"
+                bot += pad
+            bot += cfg.BOX_V
         print(bot)
 
         if i < 2:
-            print("  ╠═════╬═════╬═════╣")
-    print("  ╚═════╩═════╩═════╝")
+            print("  " + cfg.BOX_MID)
+    print("  " + cfg.BOX_BOT)
     print()
 
 
@@ -137,6 +140,7 @@ def display_scoreboard(names, scores):
     The box width adjusts dynamically based on the content length
     so the top and bottom borders always match.
     """
+    cfg = GameConfig
     # Build the content line first so we can measure its length
     x_name = BOLD + CYAN + names['X'] + RESET
     o_name = BOLD + RED + names['O'] + RESET
@@ -146,9 +150,9 @@ def display_scoreboard(names, scores):
     # Colored version for display
     colored = f" {x_name}: {scores['X']}  vs  {o_name}: {scores['O']}  Ties: {scores['tie']} "
     # Build the box with matching borders
-    print("  ┌" + "─" * width + "┐")
+    print("  " + cfg.SCORE_TOP_LEFT + cfg.SCORE_H * width + cfg.SCORE_TOP_RIGHT)
     print("  │" + colored + "│")
-    print("  └" + "─" * width + "┘")
+    print("  " + cfg.SCORE_BOT_LEFT + cfg.SCORE_H * width + cfg.SCORE_BOT_RIGHT)
 
 
 def display_banner(lines):
@@ -158,14 +162,15 @@ def display_banner(lines):
     Automatically sizes the box to fit the longest line.
     No emojis in the box to avoid alignment issues.
     """
+    cfg = GameConfig
     # Find the longest line to set the box width
     width = max(len(line) for line in lines) + 4  # +4 for padding
-    print("  ╔" + "═" * width + "╗")
+    print("  " + cfg.BANNER_TOP_LEFT + cfg.BANNER_H * width + cfg.BANNER_TOP_RIGHT)
     for line in lines:
         # Center each line within the box
         padded = line.center(width)
-        print("  ║" + padded + "║")
-    print("  ╚" + "═" * width + "╝")
+        print("  " + cfg.BANNER_V + padded + cfg.BANNER_V)
+    print("  " + cfg.BANNER_BOT_LEFT + cfg.BANNER_H * width + cfg.BANNER_BOT_RIGHT)
 
 
 # =========================
@@ -372,7 +377,8 @@ def play_game(board, names, scores, game_mode, difficulty, ai=None, ai_x=None, f
             # Computer's turn
             color = CYAN if current_player == "X" else RED
             print(f"{MAGENTA}{names[current_player]} is thinking...{RESET}")
-            time.sleep(0.8 if game_mode == "1" else 0.5)
+            delay = GameConfig.AI_THINK_DELAY_SINGLE if game_mode == "1" else GameConfig.AI_THINK_DELAY_AI_VS_AI
+            time.sleep(delay)
 
             row, col = active_ai.get_move(board)
         else:

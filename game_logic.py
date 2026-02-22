@@ -9,6 +9,48 @@ import random
 import math
 
 
+class GameConfig:
+    """Centralized configuration for all game settings."""
+
+    # AI thinking delays (seconds)
+    AI_THINK_DELAY_SINGLE = 0.8
+    AI_THINK_DELAY_AI_VS_AI = 0.5
+
+    # Timed mode defaults (seconds)
+    TIMED_MODE_OPTIONS = [5, 10, 15]
+    TIMED_MODE_DEFAULT = 10
+
+    # Tournament series lengths
+    TOURNAMENT_OPTIONS = [3, 5, 7]
+
+    # Difficulty auto-adjustment thresholds
+    ADJUST_MIN_GAMES = 5
+    ADJUST_UPGRADE_WIN_RATE = 0.70
+    ADJUST_DOWNGRADE_WIN_RATE = 0.20
+
+    # Board display characters
+    BOX_TOP = "╔═════╦═════╦═════╗"
+    BOX_MID = "╠═════╬═════╬═════╣"
+    BOX_BOT = "╚═════╩═════╩═════╝"
+    BOX_V = "║"
+    CELL_WIDTH = 5
+
+    # Banner display characters
+    BANNER_TOP_LEFT = "╔"
+    BANNER_TOP_RIGHT = "╗"
+    BANNER_BOT_LEFT = "╚"
+    BANNER_BOT_RIGHT = "╝"
+    BANNER_H = "═"
+    BANNER_V = "║"
+
+    # Scoreboard display characters
+    SCORE_TOP_LEFT = "┌"
+    SCORE_TOP_RIGHT = "┐"
+    SCORE_BOT_LEFT = "└"
+    SCORE_BOT_RIGHT = "┘"
+    SCORE_H = "─"
+
+
 class Board:
     """Represents a tic-tac-toe board and its rules."""
 
