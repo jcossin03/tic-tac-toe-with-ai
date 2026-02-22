@@ -68,3 +68,66 @@ Extract hardcoded values (thinking delay, color codes, board display characters,
 - [ ] Replace hardcoded values in tictactoe.py with config references
 - [ ] Default config works identically to current behavior
 - [ ] Unit tests verify config defaults
+
+---
+
+## Issue #5: Add Animated Board Transitions
+
+**Labels:** enhancement, UI/UX
+
+**Description:**
+Add frame-by-frame animations when placing marks on the board. Instead of an instant redraw, the new mark "materializes" with a brief multi-frame animation (e.g., dot → character → colored character). Also add a winning-line flash animation when someone wins.
+
+**Acceptance Criteria:**
+- [ ] Marks appear with a short multi-frame animation
+- [ ] Winning line flashes to celebrate the victory
+- [ ] Animation timing is configurable via GameConfig
+- [ ] Animations are short enough to not slow down gameplay
+
+---
+
+## Issue #6: Add Sound Effects
+
+**Labels:** enhancement, UI/UX
+
+**Description:**
+Add terminal bell sounds for key game events: move placement, wins, ties, and invalid input. Use the standard terminal bell character (`\a`) which works universally without external dependencies.
+
+**Acceptance Criteria:**
+- [ ] Bell on move placement
+- [ ] Double bell on win
+- [ ] Bell on tie
+- [ ] Sound can be toggled on/off via GameConfig
+- [ ] No external dependencies required
+
+---
+
+## Issue #7: Add Game Replay System
+
+**Labels:** enhancement, gameplay
+
+**Description:**
+After a game ends, offer the option to replay the game move-by-move. The replay shows each move being placed on the board step by step so players can review their strategy. Replays are saved as JSON and can be loaded later.
+
+**Acceptance Criteria:**
+- [ ] Save completed game replays to JSON files
+- [ ] Offer replay option after each game
+- [ ] Step-by-step replay with board visualization
+- [ ] Option to load and watch saved replays from the main menu
+- [ ] Unit tests cover replay save/load
+
+---
+
+## Issue #8: Add Streak Tracking and Achievements
+
+**Labels:** enhancement, gameplay
+
+**Description:**
+Track win/loss streaks in GameStats and award achievement milestones (e.g., "First Win", "5-Game Streak", "Beat Impossible AI"). Display unlocked achievements in the lifetime stats dashboard.
+
+**Acceptance Criteria:**
+- [ ] Track current and best win streaks per difficulty
+- [ ] Define achievement milestones with descriptions
+- [ ] Unlock and persist achievements in stats.json
+- [ ] Display achievements in lifetime stats
+- [ ] Unit tests cover streak and achievement logic
