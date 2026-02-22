@@ -482,34 +482,6 @@ class GameStats:
         with open(self.filepath, "w") as f:
             json.dump(self.data, f, indent=2)
 
-    def record_game(self, game_mode, difficulty, winner):
-        """Record the result of a game.
-
-        game_mode: "1" (single player) or "2" (two player)
-        difficulty: AI difficulty string, or None for two-player
-        winner: "X", "O", or None (tie)
-        """
-        if game_mode == "1":
-            sp = self.data["single_player"]
-            if difficulty not in sp:
-                sp[difficulty] = {"wins": 0, "losses": 0, "ties": 0}
-            entry = sp[difficulty]
-            if winner == "X":
-                entry["wins"] += 1
-            elif winner == "O":
-                entry["losses"] += 1
-            else:
-                entry["ties"] += 1
-        else:
-            tp = self.data["two_player"]
-            if winner == "X":
-                tp["wins_x"] += 1
-            elif winner == "O":
-                tp["wins_o"] += 1
-            else:
-                tp["ties"] += 1
-        self.save()
-
     def get_single_player_stats(self):
         """Return the single player stats dict."""
         return self.data.get("single_player", {})
@@ -526,6 +498,113 @@ class GameStats:
         tp = self.data.get("two_player", {})
         total += tp.get("wins_x", 0) + tp.get("wins_o", 0) + tp.get("ties", 0)
         return total
+
+    # Achievement definitions: (id, description, check_function_name)
+    ACHIEVEMENTS = [
+        ("first_win", "First Win", "Won your first game"),
+        ("first_impossible_win", "Impossible Victor", "Beat the Impossible AI"),
+        ("streak_3", "Hot Streak", "Won 3 games in a row"),
+        ("streak_5", "On Fire", "Won 5 games in a row"),
+        ("streak_10", "Unstoppable", "Won 10 games in a row"),
+        ("played_10", "Veteran", "Played 10 total games"),
+        ("played_50", "Dedicated", "Played 50 total games"),
+        ("all_difficulties", "Explorer", "Won on every difficulty level"),
+    ]
+
+    def _ensure_streaks(self):
+        """Make sure streak and achievement data structures exist."""
+        if "streaks" not in self.data:
+            self.data["streaks"] = {"current": 0, "best": 0}
+        if "achievements" not in self.data:
+            self.data["achievements"] = []
+
+    def record_game(self, game_mode, difficulty, winner):
+        """Record the result of a game.
+
+        game_mode: "1" (single player) or "2" (two player)
+        difficulty: AI difficulty string, or None for two-player
+        winner: "X", "O", or None (tie)
+        """
+        self._ensure_streaks()
+        if game_mode == "1":
+            sp = self.data["single_player"]
+            if difficulty not in sp:
+                sp[difficulty] = {"wins": 0, "losses": 0, "ties": 0}
+            entry = sp[difficulty]
+            if winner == "X":
+                entry["wins"] += 1
+                self.data["streaks"]["current"] += 1
+                if self.data["streaks"]["current"] > self.data["streaks"]["best"]:
+                    self.data["streaks"]["best"] = self.data["streaks"]["current"]
+            elif winner == "O":
+                entry["losses"] += 1
+                self.data["streaks"]["current"] = 0
+            else:
+                entry["ties"] += 1
+                self.data["streaks"]["current"] = 0
+        else:
+            tp = self.data["two_player"]
+            if winner == "X":
+                tp["wins_x"] += 1
+            elif winner == "O":
+                tp["wins_o"] += 1
+            else:
+                tp["ties"] += 1
+        self._check_achievements(game_mode, difficulty, winner)
+        self.save()
+
+    def _check_achievements(self, game_mode, difficulty, winner):
+        """Check and unlock any new achievements."""
+        unlocked = self.data["achievements"]
+        sp = self.data.get("single_player", {})
+
+        # First Win
+        if "first_win" not in unlocked and winner == "X" and game_mode == "1":
+            unlocked.append("first_win")
+
+        # Beat Impossible
+        if "first_impossible_win" not in unlocked and winner == "X" and difficulty == "impossible":
+            unlocked.append("first_impossible_win")
+
+        # Streaks
+        current_streak = self.data["streaks"]["current"]
+        if "streak_3" not in unlocked and current_streak >= 3:
+            unlocked.append("streak_3")
+        if "streak_5" not in unlocked and current_streak >= 5:
+            unlocked.append("streak_5")
+        if "streak_10" not in unlocked and current_streak >= 10:
+            unlocked.append("streak_10")
+
+        # Games played
+        total = self.get_total_games()
+        if "played_10" not in unlocked and total >= 10:
+            unlocked.append("played_10")
+        if "played_50" not in unlocked and total >= 50:
+            unlocked.append("played_50")
+
+        # All difficulties
+        if "all_difficulties" not in unlocked:
+            all_won = all(
+                diff in sp and sp[diff]["wins"] > 0
+                for diff in AI.DIFFICULTIES
+            )
+            if all_won:
+                unlocked.append("all_difficulties")
+
+    def get_streaks(self):
+        """Return current and best streak."""
+        self._ensure_streaks()
+        return self.data["streaks"]
+
+    def get_achievements(self):
+        """Return list of unlocked achievement IDs."""
+        self._ensure_streaks()
+        return self.data["achievements"]
+
+    def get_new_achievements(self, old_count):
+        """Return achievements unlocked since old_count."""
+        self._ensure_streaks()
+        return self.data["achievements"][old_count:]
 
     def get_difficulty_suggestion(self, current_difficulty):
         """Suggest a difficulty change based on win rate.

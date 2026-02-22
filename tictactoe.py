@@ -743,6 +743,18 @@ def replay_menu():
 # --- Program Start! ---
 # ======================
 
+def display_new_achievements(stats, old_count):
+    """Show any newly unlocked achievements."""
+    new = stats.get_new_achievements(old_count)
+    if not new:
+        return
+    achievement_map = {a[0]: (a[1], a[2]) for a in GameStats.ACHIEVEMENTS}
+    for ach_id in new:
+        name, desc = achievement_map.get(ach_id, (ach_id, ""))
+        print(f"  {YELLOW}*** Achievement Unlocked: {BOLD}{name}{RESET}{YELLOW} — {desc} ***{RESET}")
+    print()
+
+
 def display_lifetime_stats(stats):
     """Show a summary of lifetime game statistics."""
     sp = stats.get_single_player_stats()
@@ -763,7 +775,16 @@ def display_lifetime_stats(stats):
     tp_total = tp.get("wins_x", 0) + tp.get("wins_o", 0) + tp.get("ties", 0)
     if tp_total > 0:
         print(f"  Two Player: X {tp['wins_x']}W / O {tp['wins_o']}W / {tp['ties']}T ({tp_total} games)")
+    streaks = stats.get_streaks()
+    if streaks["best"] > 0:
+        print(f"  Win streak: {streaks['current']} current / {streaks['best']} best")
     print(f"  Total games played: {total}")
+    # Show achievements
+    achievements = stats.get_achievements()
+    if achievements:
+        achievement_map = {a[0]: a[1] for a in GameStats.ACHIEVEMENTS}
+        names_list = [achievement_map.get(a, a) for a in achievements]
+        print(f"  Achievements ({len(achievements)}/{len(GameStats.ACHIEVEMENTS)}): {', '.join(names_list)}")
     print()
 
 
@@ -867,6 +888,7 @@ if __name__ == "__main__":
         winner, game_replay = result
 
         # Record result in persistent stats
+        old_achievement_count = len(stats.get_achievements())
         if effective_mode != "3":
             stats.record_game(effective_mode, difficulty, winner)
 
@@ -874,6 +896,9 @@ if __name__ == "__main__":
         print()
         display_scoreboard(names, scores)
         print()
+
+        # Show newly unlocked achievements
+        display_new_achievements(stats, old_achievement_count)
 
         # Offer to save replay
         offer_save_replay(game_replay)
