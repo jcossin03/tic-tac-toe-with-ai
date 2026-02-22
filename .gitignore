@@ -17,8 +17,9 @@ venv/
 .DS_Store
 Thumbs.db
 
-# Game stats (user-specific data)
+# Game data (user-specific)
 stats.json
+replays/
 
 # Claude Code
 CLAUDE.md

@@ -12,7 +12,7 @@ import sys
 import threading
 import time
 
-from game_logic import Board, AI, GameStats, GameConfig, Tournament
+from game_logic import Board, AI, GameStats, GameConfig, Tournament, GameReplay
 
 # Make sure the terminal can display our fancy box characters (╔, ═, etc.)
 # This tells Python to use UTF-8 encoding for output.
@@ -191,12 +191,13 @@ def get_game_mode():
     print(f"  {BOLD}2{RESET} - Two Players")
     print(f"  {BOLD}3{RESET} - AI vs AI (Watch Mode)")
     print(f"  {BOLD}4{RESET} - Tournament (Best-of-N Series)")
+    print(f"  {BOLD}5{RESET} - Watch Replay")
     print()
     while True:
-        choice = input("Choose mode (1-4): ").strip()
-        if choice in ["1", "2", "3", "4"]:
+        choice = input("Choose mode (1-5): ").strip()
+        if choice in ["1", "2", "3", "4", "5"]:
             return choice
-        print("Please enter 1, 2, 3, or 4.")
+        print("Please enter 1, 2, 3, 4, or 5.")
 
 
 def get_difficulty():
@@ -549,6 +550,7 @@ def play_game(board, names, scores, game_mode, difficulty, ai=None, ai_x=None, f
     """
     current_player = first_player
     move_log = []
+    replay = GameReplay()
 
     # The game loop - keeps going for up to 9 turns (the whole board)
     for turn in range(9):
@@ -596,6 +598,7 @@ def play_game(board, names, scores, game_mode, difficulty, ai=None, ai_x=None, f
         board.place_move(row, col, current_player)
         spot_number = Board.coords_to_spot(row, col)
         move_log.append((current_player, spot_number))
+        replay.record_move(current_player, spot_number)
         play_sound("move")
 
         # Clear screen and redraw everything
@@ -623,16 +626,18 @@ def play_game(board, names, scores, game_mode, difficulty, ai=None, ai_x=None, f
             color = CYAN if winner == "X" else RED
             print(f"{GREEN}*** {BOLD}{color}{names[winner]}{RESET}{GREEN} ({BOLD}{color}{winner}{RESET}{GREEN}) wins! Congratulations! ***{RESET}")
             scores[winner] += 1
+            replay.set_metadata(names, game_mode, difficulty, winner)
             display_move_history(move_log, names)
-            return winner
+            return winner, replay
 
         # Check if the board is full (tie game)
         if board.is_full():
             play_sound("tie")
             print(f"{YELLOW}It's a tie! Great game, everyone!{RESET}")
             scores["tie"] += 1
+            replay.set_metadata(names, game_mode, difficulty, None)
             display_move_history(move_log, names)
-            return None
+            return None, replay
 
         # Switch to the other player
         if current_player == "X":
@@ -643,6 +648,95 @@ def play_game(board, names, scores, game_mode, difficulty, ai=None, ai_x=None, f
         # In AI vs AI mode, pause briefly so the viewer can follow
         if game_mode == "3":
             input(f"{DIM}Press Enter to continue...{RESET}")
+
+
+def offer_save_replay(replay):
+    """Ask if the player wants to save the game replay."""
+    while True:
+        answer = input(f"{DIM}Save replay? (y/n): {RESET}").strip().lower()
+        if answer in ["y", "yes"]:
+            filepath = replay.save()
+            print(f"  {GREEN}Replay saved to {filepath}{RESET}")
+            return
+        elif answer in ["n", "no"]:
+            return
+        print("Please enter 'y' or 'n'.")
+
+
+def watch_replay(replay):
+    """Play back a saved game replay step by step."""
+    board = Board()
+    names = replay.names
+    scores = {"X": 0, "O": 0, "tie": 0}
+
+    clear_screen()
+    display_banner(["Game Replay"])
+    print(f"  {names.get('X', 'X')} vs {names.get('O', 'O')}")
+    if replay.difficulty:
+        print(f"  Difficulty: {replay.difficulty}")
+    print()
+    display_board(board)
+    input(f"{DIM}Press Enter to start replay...{RESET}")
+
+    for i, move in enumerate(replay.moves, 1):
+        player = move["player"]
+        spot = move["spot"]
+        row, col = Board.spot_to_coords(str(spot))
+        board.place_move(row, col, player)
+
+        clear_screen()
+        print(f"=== Replay (Move {i}/{len(replay.moves)}) ===")
+
+        winner = board.check_winner()
+        winning_line = board.get_winning_line() if winner else None
+        display_board(board, winning_line=winning_line)
+
+        color = CYAN if player == "X" else RED
+        mark = BOLD + color + player + RESET
+        print(f"  {names.get(player, player)} ({mark}) -> spot {spot}")
+
+        if winner:
+            color = CYAN if winner == "X" else RED
+            print(f"\n{GREEN}*** {BOLD}{color}{names.get(winner, winner)}{RESET}{GREEN} wins! ***{RESET}")
+        elif board.is_full():
+            print(f"\n{YELLOW}It's a tie!{RESET}")
+
+        if i < len(replay.moves):
+            input(f"{DIM}Press Enter for next move...{RESET}")
+
+    print()
+    input(f"{DIM}Replay complete. Press Enter to continue...{RESET}")
+
+
+def replay_menu():
+    """Show available replays and let the user pick one to watch."""
+    replays = GameReplay.list_replays()
+    if not replays:
+        print(f"  {DIM}No saved replays found.{RESET}")
+        print()
+        return
+
+    print("=== Saved Replays ===")
+    for i, filename in enumerate(replays[:10], 1):  # show last 10
+        print(f"  {BOLD}{i}{RESET} - {filename}")
+    print(f"  {BOLD}0{RESET} - Back")
+    print()
+
+    while True:
+        choice = input("Choose replay (0 to go back): ").strip()
+        if choice == "0":
+            return
+        try:
+            idx = int(choice) - 1
+            if 0 <= idx < len(replays[:10]):
+                import os
+                filepath = os.path.join(GameReplay.REPLAY_DIR, replays[idx])
+                replay = GameReplay.load(filepath)
+                watch_replay(replay)
+                return
+        except (ValueError, IndexError):
+            pass
+        print("Please enter a valid number.")
 
 
 # ======================
@@ -684,8 +778,14 @@ if __name__ == "__main__":
     # Show lifetime stats if any games have been played
     display_lifetime_stats(stats)
 
-    # Choose game mode: 1 player, 2 players, AI vs AI, or tournament
+    # Choose game mode: 1 player, 2 players, AI vs AI, tournament, or replay
     game_mode = get_game_mode()
+
+    # Replay mode: watch a saved game and exit
+    if game_mode == "5":
+        replay_menu()
+        print("See you next time!")
+        sys.exit(0)
 
     # Tournament mode wraps around single-player or two-player
     tournament = None
@@ -761,9 +861,10 @@ if __name__ == "__main__":
         print()
 
         # Play one complete game
-        winner = play_game(board, names, scores, effective_mode, difficulty,
+        result = play_game(board, names, scores, effective_mode, difficulty,
                            ai=ai, ai_x=ai_x, first_player=first_player,
                            time_limit=time_limit)
+        winner, game_replay = result
 
         # Record result in persistent stats
         if effective_mode != "3":
@@ -773,6 +874,9 @@ if __name__ == "__main__":
         print()
         display_scoreboard(names, scores)
         print()
+
+        # Offer to save replay
+        offer_save_replay(game_replay)
 
         # Suggest difficulty adjustment (single-player only)
         if effective_mode == "1" and difficulty:

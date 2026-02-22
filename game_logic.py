@@ -396,6 +396,71 @@ class Tournament:
         return f"Round {self.round_number + 1}/{self.best_of} | {lead}"
 
 
+class GameReplay:
+    """Save and load game replays as JSON files."""
+
+    REPLAY_DIR = "replays"
+
+    def __init__(self):
+        self.moves = []  # list of {"player": "X"/"O", "spot": 1-9}
+        self.names = {}
+        self.game_mode = ""
+        self.difficulty = None
+        self.winner = None
+
+    def record_move(self, player, spot):
+        """Record a single move."""
+        self.moves.append({"player": player, "spot": spot})
+
+    def set_metadata(self, names, game_mode, difficulty, winner):
+        """Set game metadata after the game ends."""
+        self.names = dict(names)
+        self.game_mode = game_mode
+        self.difficulty = difficulty
+        self.winner = winner
+
+    def save(self, filename=None):
+        """Save the replay to a JSON file. Returns the filepath."""
+        os.makedirs(self.REPLAY_DIR, exist_ok=True)
+        if filename is None:
+            import time as _time
+            timestamp = _time.strftime("%Y%m%d_%H%M%S")
+            filename = f"replay_{timestamp}.json"
+        filepath = os.path.join(self.REPLAY_DIR, filename)
+        data = {
+            "names": self.names,
+            "game_mode": self.game_mode,
+            "difficulty": self.difficulty,
+            "winner": self.winner,
+            "moves": self.moves,
+        }
+        with open(filepath, "w") as f:
+            json.dump(data, f, indent=2)
+        return filepath
+
+    @classmethod
+    def load(cls, filepath):
+        """Load a replay from a JSON file."""
+        with open(filepath, "r") as f:
+            data = json.load(f)
+        replay = cls()
+        replay.names = data["names"]
+        replay.game_mode = data["game_mode"]
+        replay.difficulty = data.get("difficulty")
+        replay.winner = data.get("winner")
+        replay.moves = data["moves"]
+        return replay
+
+    @classmethod
+    def list_replays(cls):
+        """Return a list of replay filenames sorted by most recent."""
+        if not os.path.exists(cls.REPLAY_DIR):
+            return []
+        files = [f for f in os.listdir(cls.REPLAY_DIR) if f.endswith(".json")]
+        files.sort(reverse=True)
+        return files
+
+
 class GameStats:
     """Persistent game statistics saved to a JSON file."""
 
