@@ -698,6 +698,22 @@ if __name__ == "__main__":
         display_scoreboard(names, scores)
         print()
 
+        # Suggest difficulty adjustment (single-player only)
+        if effective_mode == "1" and difficulty:
+            suggestion = stats.get_difficulty_suggestion(difficulty)
+            if suggestion == "up":
+                idx = AI.DIFFICULTIES.index(difficulty)
+                next_diff = AI.DIFFICULTIES[idx + 1]
+                label = get_difficulty_label(next_diff)
+                print(f"  {YELLOW}You're dominating! Consider trying {label}{YELLOW} difficulty.{RESET}")
+                print()
+            elif suggestion == "down":
+                idx = AI.DIFFICULTIES.index(difficulty)
+                prev_diff = AI.DIFFICULTIES[idx - 1]
+                label = get_difficulty_label(prev_diff)
+                print(f"  {YELLOW}Having a tough time? Try {label}{YELLOW} difficulty.{RESET}")
+                print()
+
         # Tournament mode: record round and check if series is over
         if tournament:
             series_over = tournament.record_round(winner)

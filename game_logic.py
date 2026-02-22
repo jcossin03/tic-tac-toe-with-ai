@@ -451,3 +451,25 @@ class GameStats:
         tp = self.data.get("two_player", {})
         total += tp.get("wins_x", 0) + tp.get("wins_o", 0) + tp.get("ties", 0)
         return total
+
+    def get_difficulty_suggestion(self, current_difficulty):
+        """Suggest a difficulty change based on win rate.
+
+        Returns "up", "down", or None. Only suggests after enough games
+        at the current difficulty (configured in GameConfig).
+        """
+        sp = self.data.get("single_player", {})
+        if current_difficulty not in sp:
+            return None
+        entry = sp[current_difficulty]
+        total = entry["wins"] + entry["losses"] + entry["ties"]
+        if total < GameConfig.ADJUST_MIN_GAMES:
+            return None
+        win_rate = entry["wins"] / total
+        difficulties = AI.DIFFICULTIES
+        idx = difficulties.index(current_difficulty) if current_difficulty in difficulties else -1
+        if win_rate >= GameConfig.ADJUST_UPGRADE_WIN_RATE and idx < len(difficulties) - 1:
+            return "up"
+        if win_rate <= GameConfig.ADJUST_DOWNGRADE_WIN_RATE and idx > 0:
+            return "down"
+        return None
