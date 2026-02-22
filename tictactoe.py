@@ -7,7 +7,9 @@
 # Weekend 7: Refactor, new AI modes, move explanations
 
 import os
+import random
 import sys
+import threading
 import time
 
 from game_logic import Board, AI, GameStats, GameConfig, Tournament
@@ -294,6 +296,67 @@ def display_tournament_status(tournament, names):
     print()
 
 
+def get_timed_mode():
+    """Ask if the player wants timed moves.
+
+    Returns the time limit in seconds, or None for untimed.
+    """
+    print()
+    print("=== Timed Mode ===")
+    print(f"  {BOLD}0{RESET} - No time limit")
+    for secs in GameConfig.TIMED_MODE_OPTIONS:
+        print(f"  {BOLD}{secs}{RESET} - {secs} seconds per move")
+    print()
+    valid = ["0"] + [str(s) for s in GameConfig.TIMED_MODE_OPTIONS]
+    while True:
+        choice = input(f"Choose time limit ({', '.join(valid)}): ").strip()
+        if choice in valid:
+            val = int(choice)
+            return val if val > 0 else None
+        print(f"Please enter {', '.join(valid)}.")
+
+
+def get_timed_move(board, player, player_name, time_limit):
+    """Get a move with a countdown timer. Returns (row, col).
+
+    If the player doesn't move in time, a random valid move is made for them.
+    Uses a background thread for input so the main thread can count down.
+    """
+    color = CYAN if player == "X" else RED
+    colored_mark = BOLD + color + player + RESET
+
+    result = {"move": None}
+
+    def read_input():
+        while result["move"] is None:
+            try:
+                move = input(f"{player_name} ({colored_mark}), pick a spot (1-9) [{time_limit}s]: ")
+                if move not in "123456789" or len(move) != 1:
+                    print("Oops! Please enter a number from 1 to 9.")
+                    continue
+                row, col = Board.spot_to_coords(move)
+                if not board.is_valid_move(row, col):
+                    print("That spot is already taken! Try again.")
+                    continue
+                result["move"] = (row, col)
+                return
+            except EOFError:
+                return
+
+    input_thread = threading.Thread(target=read_input, daemon=True)
+    input_thread.start()
+    input_thread.join(timeout=time_limit)
+
+    if result["move"] is not None:
+        return result["move"]
+
+    # Time expired — pick a random valid move
+    spots = board.get_open_spots()
+    move = random.choice(spots)
+    print(f"\n{YELLOW}Time's up! A random move was made.{RESET}")
+    return move
+
+
 def get_first_player():
     """Ask who should go first.
 
@@ -410,13 +473,14 @@ def display_move_history(move_log, names):
     print()
 
 
-def play_game(board, names, scores, game_mode, difficulty, ai=None, ai_x=None, first_player="X"):
+def play_game(board, names, scores, game_mode, difficulty, ai=None, ai_x=None, first_player="X", time_limit=None):
     """Play one complete game of tic-tac-toe.
 
     This function contains the turn-by-turn game loop.
     It updates the scores dictionary when the game ends.
     In 1-player mode, the computer automatically takes its turn.
     In AI vs AI mode, both players are controlled by AI.
+    time_limit: seconds per move, or None for unlimited.
     Returns the winner ("X", "O") or None (tie).
     """
     current_player = first_player
@@ -445,8 +509,11 @@ def play_game(board, names, scores, game_mode, difficulty, ai=None, ai_x=None, f
 
             row, col = active_ai.get_move(board)
         else:
-            # Human's turn - ask for input
-            row, col = get_move(board, current_player, names[current_player])
+            # Human's turn - ask for input (with optional timer)
+            if time_limit:
+                row, col = get_timed_move(board, current_player, names[current_player], time_limit)
+            else:
+                row, col = get_move(board, current_player, names[current_player])
 
         # Place their mark on the board
         board.place_move(row, col, current_player)
@@ -584,6 +651,11 @@ if __name__ == "__main__":
     if effective_mode in ["1", "2"]:
         first_player = get_first_player()
 
+    # Offer timed mode for human-involved games
+    time_limit = None
+    if effective_mode in ["1", "2"]:
+        time_limit = get_timed_mode()
+
     # Scores are stored in a dictionary - easy to look up by key
     scores = {"X": 0, "O": 0, "tie": 0}
 
@@ -601,6 +673,8 @@ if __name__ == "__main__":
             print(f"  Mode: vs Computer ({diff_label})")
         elif effective_mode == "3":
             print(f"  Mode: AI vs AI")
+        if time_limit:
+            print(f"  Timer: {YELLOW}{time_limit}s per move{RESET}")
         if tournament and not tournament.is_over():
             display_tournament_status(tournament, names)
         display_scoreboard(names, scores)
@@ -612,7 +686,8 @@ if __name__ == "__main__":
 
         # Play one complete game
         winner = play_game(board, names, scores, effective_mode, difficulty,
-                           ai=ai, ai_x=ai_x, first_player=first_player)
+                           ai=ai, ai_x=ai_x, first_player=first_player,
+                           time_limit=time_limit)
 
         # Record result in persistent stats
         if effective_mode != "3":
