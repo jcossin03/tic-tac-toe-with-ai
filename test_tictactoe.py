@@ -4,7 +4,7 @@
 
 import os
 import tempfile
-from game_logic import Board, AI, GameStats
+from game_logic import Board, AI, GameStats, GameConfig, Tournament
 
 
 # ===========================
@@ -443,3 +443,158 @@ class TestGameStats:
         assert "impossible" in sp
         assert stats.get_total_games() == 3
         os.unlink(path)
+
+
+# ===========================
+# --- GameConfig Tests ---
+# ===========================
+
+class TestGameConfig:
+    def test_default_delays_are_positive(self):
+        assert GameConfig.AI_THINK_DELAY_SINGLE > 0
+        assert GameConfig.AI_THINK_DELAY_AI_VS_AI > 0
+
+    def test_timed_mode_options(self):
+        assert len(GameConfig.TIMED_MODE_OPTIONS) >= 2
+        for opt in GameConfig.TIMED_MODE_OPTIONS:
+            assert opt > 0
+
+    def test_tournament_options(self):
+        for opt in GameConfig.TOURNAMENT_OPTIONS:
+            assert opt % 2 == 1  # must be odd for best-of-N
+
+    def test_adjustment_thresholds(self):
+        assert 0 < GameConfig.ADJUST_DOWNGRADE_WIN_RATE < GameConfig.ADJUST_UPGRADE_WIN_RATE <= 1.0
+        assert GameConfig.ADJUST_MIN_GAMES >= 1
+
+
+# ===========================
+# --- Tournament Tests ---
+# ===========================
+
+class TestTournament:
+    def test_create_best_of_3(self):
+        t = Tournament(3)
+        assert t.best_of == 3
+        assert t.wins_needed == 2
+        assert t.round_number == 0
+
+    def test_create_best_of_5(self):
+        t = Tournament(5)
+        assert t.wins_needed == 3
+
+    def test_invalid_series_length(self):
+        import pytest
+        with pytest.raises(ValueError):
+            Tournament(4)
+
+    def test_record_round_not_over(self):
+        t = Tournament(3)
+        over = t.record_round("X")
+        assert over is False
+        assert t.wins["X"] == 1
+        assert t.round_number == 1
+
+    def test_series_ends_on_clinch(self):
+        t = Tournament(3)
+        t.record_round("X")
+        over = t.record_round("X")
+        assert over is True
+        assert t.get_series_winner() == "X"
+
+    def test_ties_dont_clinch(self):
+        t = Tournament(3)
+        t.record_round(None)
+        t.record_round(None)
+        assert t.is_over() is False
+        assert t.get_series_winner() is None
+
+    def test_full_series_with_ties(self):
+        t = Tournament(3)
+        t.record_round("X")
+        t.record_round(None)
+        t.record_round("O")
+        assert t.is_over() is False
+        t.record_round("O")
+        assert t.is_over() is True
+        assert t.get_series_winner() == "O"
+
+    def test_results_tracked(self):
+        t = Tournament(5)
+        t.record_round("X")
+        t.record_round("O")
+        t.record_round(None)
+        assert t.results == ["X", "O", None]
+
+    def test_status_line_starting(self):
+        t = Tournament(3)
+        status = t.get_status_line()
+        assert "Round 1/3" in status
+
+    def test_status_line_leading(self):
+        t = Tournament(5)
+        t.record_round("X")
+        status = t.get_status_line()
+        assert "X leads" in status
+
+
+# ===========================
+# --- Difficulty Suggestion Tests ---
+# ===========================
+
+class TestDifficultySuggestion:
+    def _make_stats(self):
+        fd, path = tempfile.mkstemp(suffix=".json")
+        os.close(fd)
+        os.unlink(path)
+        return GameStats(filepath=path), path
+
+    def test_no_suggestion_too_few_games(self):
+        stats, path = self._make_stats()
+        for _ in range(4):  # under threshold of 5
+            stats.record_game("1", "easy", "X")
+        assert stats.get_difficulty_suggestion("easy") is None
+        os.unlink(path)
+
+    def test_suggest_up_when_dominating(self):
+        stats, path = self._make_stats()
+        for _ in range(5):
+            stats.record_game("1", "easy", "X")
+        assert stats.get_difficulty_suggestion("easy") == "up"
+        os.unlink(path)
+
+    def test_suggest_down_when_struggling(self):
+        stats, path = self._make_stats()
+        for _ in range(5):
+            stats.record_game("1", "hard", "O")  # loss
+        assert stats.get_difficulty_suggestion("hard") == "down"
+        os.unlink(path)
+
+    def test_no_suggestion_when_balanced(self):
+        stats, path = self._make_stats()
+        for _ in range(3):
+            stats.record_game("1", "medium", "X")
+        for _ in range(3):
+            stats.record_game("1", "medium", "O")
+        assert stats.get_difficulty_suggestion("medium") is None
+        os.unlink(path)
+
+    def test_no_up_at_max_difficulty(self):
+        stats, path = self._make_stats()
+        for _ in range(5):
+            stats.record_game("1", "impossible", "X")
+        assert stats.get_difficulty_suggestion("impossible") is None
+        os.unlink(path)
+
+    def test_no_down_at_min_difficulty(self):
+        stats, path = self._make_stats()
+        for _ in range(5):
+            stats.record_game("1", "easy", "O")
+        assert stats.get_difficulty_suggestion("easy") is None
+        os.unlink(path)
+
+    def test_no_suggestion_for_unplayed_difficulty(self):
+        stats, path = self._make_stats()
+        assert stats.get_difficulty_suggestion("hard") is None
+        if os.path.exists(path):
+            os.unlink(path)
