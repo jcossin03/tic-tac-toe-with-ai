@@ -10,7 +10,7 @@ import os
 import sys
 import time
 
-from game_logic import Board, AI, GameStats, GameConfig
+from game_logic import Board, AI, GameStats, GameConfig, Tournament
 
 # Make sure the terminal can display our fancy box characters (╔, ═, etc.)
 # This tells Python to use UTF-8 encoding for output.
@@ -180,19 +180,21 @@ def display_banner(lines):
 def get_game_mode():
     """Ask the player to choose a game mode.
 
-    Returns "1" for single player, "2" for two players, or "3" for AI vs AI.
+    Returns "1" for single player, "2" for two players, "3" for AI vs AI,
+    or "4" for tournament mode.
     Uses a while loop to keep asking until we get a valid answer.
     """
     print("=== Game Mode ===")
     print(f"  {BOLD}1{RESET} - Single Player (vs Computer)")
     print(f"  {BOLD}2{RESET} - Two Players")
     print(f"  {BOLD}3{RESET} - AI vs AI (Watch Mode)")
+    print(f"  {BOLD}4{RESET} - Tournament (Best-of-N Series)")
     print()
     while True:
-        choice = input("Choose mode (1, 2, or 3): ").strip()
-        if choice in ["1", "2", "3"]:
+        choice = input("Choose mode (1-4): ").strip()
+        if choice in ["1", "2", "3", "4"]:
             return choice
-        print("Please enter 1, 2, or 3.")
+        print("Please enter 1, 2, 3, or 4.")
 
 
 def get_difficulty():
@@ -229,6 +231,67 @@ def get_difficulty_label(difficulty):
         "impossible": f"{MAGENTA}Impossible{RESET}",
     }
     return labels.get(difficulty, difficulty)
+
+
+def get_tournament_length():
+    """Ask the player to choose a tournament series length.
+
+    Returns 3, 5, or 7.
+    """
+    print()
+    print("=== Tournament Length ===")
+    for opt in GameConfig.TOURNAMENT_OPTIONS:
+        print(f"  {BOLD}{opt}{RESET} - Best of {opt}")
+    print()
+    valid = [str(o) for o in GameConfig.TOURNAMENT_OPTIONS]
+    while True:
+        choice = input(f"Choose series length ({', '.join(valid)}): ").strip()
+        if choice in valid:
+            return int(choice)
+        print(f"Please enter {', '.join(valid)}.")
+
+
+def get_tournament_type():
+    """Ask what type of tournament game (vs Computer or vs Player).
+
+    Returns "1" for single player or "2" for two player.
+    """
+    print()
+    print("=== Tournament Type ===")
+    print(f"  {BOLD}1{RESET} - vs Computer")
+    print(f"  {BOLD}2{RESET} - vs Player")
+    print()
+    while True:
+        choice = input("Choose (1 or 2): ").strip()
+        if choice in ["1", "2"]:
+            return choice
+        print("Please enter 1 or 2.")
+
+
+def display_tournament_status(tournament, names):
+    """Show the tournament bracket/progress between rounds."""
+    t = tournament
+    print(f"  {YELLOW}=== Tournament: Best of {t.best_of} ==={RESET}")
+    x_name = BOLD + CYAN + names['X'] + RESET
+    o_name = BOLD + RED + names['O'] + RESET
+    print(f"  {x_name}: {t.wins['X']} wins  |  {o_name}: {t.wins['O']} wins  |  Ties: {t.wins['tie']}")
+    if t.results:
+        rounds_str = "  Rounds: "
+        for i, result in enumerate(t.results, 1):
+            if result == "X":
+                rounds_str += f"{CYAN}X{RESET} "
+            elif result == "O":
+                rounds_str += f"{RED}O{RESET} "
+            else:
+                rounds_str += f"{DIM}T{RESET} "
+        print(rounds_str)
+    winner = t.get_series_winner()
+    if winner:
+        color = CYAN if winner == "X" else RED
+        print(f"  {GREEN}*** {BOLD}{color}{names[winner]}{RESET}{GREEN} wins the series! ***{RESET}")
+    elif not t.is_over():
+        print(f"  {DIM}{t.get_status_line()}{RESET}")
+    print()
 
 
 def get_first_player():
@@ -478,18 +541,29 @@ if __name__ == "__main__":
     # Show lifetime stats if any games have been played
     display_lifetime_stats(stats)
 
-    # Choose game mode: 1 player, 2 players, or AI vs AI
+    # Choose game mode: 1 player, 2 players, AI vs AI, or tournament
     game_mode = get_game_mode()
+
+    # Tournament mode wraps around single-player or two-player
+    tournament = None
+    tournament_game_mode = None
+    if game_mode == "4":
+        best_of = get_tournament_length()
+        tournament = Tournament(best_of)
+        tournament_game_mode = get_tournament_type()
+    else:
+        tournament_game_mode = game_mode
 
     # If single player or AI vs AI, choose difficulty
     difficulty = None
     difficulty_x = None
     ai = None
     ai_x = None
-    if game_mode == "1":
+    effective_mode = tournament_game_mode if game_mode == "4" else game_mode
+    if effective_mode == "1":
         difficulty = get_difficulty()
         ai = AI(difficulty, mark="O", opponent_mark="X")
-    elif game_mode == "3":
+    elif effective_mode == "3":
         print()
         print(f"=== {BOLD}{CYAN}AI-X{RESET} Difficulty ===")
         difficulty_x = get_difficulty()
@@ -500,14 +574,14 @@ if __name__ == "__main__":
         ai = AI(difficulty, mark="O", opponent_mark="X")
 
     # Get player names (automatic in AI vs AI mode)
-    names = get_player_names(game_mode)
-    if game_mode == "3":
+    names = get_player_names(effective_mode)
+    if effective_mode == "3":
         names["X"] = f"AI-X ({difficulty_x.title()})"
         names["O"] = f"AI-O ({difficulty.title()})"
 
     # Choose who goes first
     first_player = "X"
-    if game_mode in ["1", "2"]:
+    if effective_mode in ["1", "2"]:
         first_player = get_first_player()
 
     # Scores are stored in a dictionary - easy to look up by key
@@ -522,11 +596,13 @@ if __name__ == "__main__":
         # Show the starting state
         clear_screen()
         print("=== Tic-Tac-Toe ===")
-        if game_mode == "1":
+        if effective_mode == "1":
             diff_label = get_difficulty_label(difficulty)
             print(f"  Mode: vs Computer ({diff_label})")
-        elif game_mode == "3":
+        elif effective_mode == "3":
             print(f"  Mode: AI vs AI")
+        if tournament and not tournament.is_over():
+            display_tournament_status(tournament, names)
         display_scoreboard(names, scores)
         display_board(board)
         color = CYAN if first_player == "X" else RED
@@ -535,18 +611,28 @@ if __name__ == "__main__":
         print()
 
         # Play one complete game
-        winner = play_game(board, names, scores, game_mode, difficulty,
+        winner = play_game(board, names, scores, effective_mode, difficulty,
                            ai=ai, ai_x=ai_x, first_player=first_player)
 
         # Record result in persistent stats
-        if game_mode != "3":
-            stats.record_game(game_mode, difficulty, winner)
+        if effective_mode != "3":
+            stats.record_game(effective_mode, difficulty, winner)
 
-        # Show final score and ask to play again
+        # Show final score
         print()
         display_scoreboard(names, scores)
         print()
-        playing = play_again()
+
+        # Tournament mode: record round and check if series is over
+        if tournament:
+            series_over = tournament.record_round(winner)
+            display_tournament_status(tournament, names)
+            if series_over:
+                playing = False
+            else:
+                input(f"{DIM}Press Enter for next round...{RESET}")
+        else:
+            playing = play_again()
 
     # Goodbye message
     clear_screen()
@@ -555,5 +641,7 @@ if __name__ == "__main__":
     print("=== Final Scores ===")
     display_scoreboard(names, scores)
     print()
+    if tournament:
+        display_tournament_status(tournament, names)
     display_lifetime_stats(stats)
     print("See you next time!")

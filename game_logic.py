@@ -335,6 +335,57 @@ class AI:
         return None
 
 
+class Tournament:
+    """Tracks a best-of-N series between two players."""
+
+    def __init__(self, best_of):
+        if best_of not in GameConfig.TOURNAMENT_OPTIONS:
+            raise ValueError(f"Series length must be one of {GameConfig.TOURNAMENT_OPTIONS}")
+        self.best_of = best_of
+        self.wins_needed = best_of // 2 + 1
+        self.wins = {"X": 0, "O": 0, "tie": 0}
+        self.round_number = 0
+        self.results = []  # list of "X", "O", or None per round
+
+    def record_round(self, winner):
+        """Record the result of a round. Returns True if series is over."""
+        self.round_number += 1
+        self.results.append(winner)
+        if winner == "X":
+            self.wins["X"] += 1
+        elif winner == "O":
+            self.wins["O"] += 1
+        else:
+            self.wins["tie"] += 1
+        return self.is_over()
+
+    def is_over(self):
+        """Return True if a player has clinched the series."""
+        return self.wins["X"] >= self.wins_needed or self.wins["O"] >= self.wins_needed
+
+    def get_series_winner(self):
+        """Return 'X', 'O', or None if no one has clinched yet."""
+        if self.wins["X"] >= self.wins_needed:
+            return "X"
+        if self.wins["O"] >= self.wins_needed:
+            return "O"
+        return None
+
+    def get_status_line(self):
+        """Return a short status string like 'Round 2/3 | X leads 1-0'."""
+        x_w = self.wins["X"]
+        o_w = self.wins["O"]
+        if x_w > o_w:
+            lead = f"X leads {x_w}-{o_w}"
+        elif o_w > x_w:
+            lead = f"O leads {o_w}-{x_w}"
+        elif x_w == 0:
+            lead = "Series starting"
+        else:
+            lead = f"Tied {x_w}-{o_w}"
+        return f"Round {self.round_number + 1}/{self.best_of} | {lead}"
+
+
 class GameStats:
     """Persistent game statistics saved to a JSON file."""
 
