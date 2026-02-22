@@ -94,6 +94,19 @@ Requires **Python 3.10+**.
 - Configuration system — `GameConfig` class centralizes all hardcoded values
 - 21 new unit tests (70 total, all passing)
 
+### Weekend 10: Animations, Replays & Achievements
+**Status:** Complete
+
+**Python Concepts:** Frame-based animation, JSON serialization, achievement patterns
+
+- Animated board transitions — marks appear with a multi-frame animation (. → + → * → X/O)
+- Winning line flash — the winning three cells flash on/off to celebrate
+- Sound effects — terminal bell on moves, wins, and ties (toggleable via config)
+- Game replay system — save games as JSON, browse and rewatch step-by-step from the menu
+- Win streak tracking — current and best streak displayed in lifetime stats
+- Achievement system — 8 milestones (First Win, Beat Impossible, streaks, Explorer, etc.)
+- 14 new unit tests (84 total, all passing)
+
 ## Future Improvements
 
 A backlog of ideas for future weekends, organized by category.
@@ -115,8 +128,8 @@ A backlog of ideas for future weekends, organized by category.
 - [x] **Highlight winning line** — When someone wins, highlight the three winning cells in a different color
 - [x] **Move history display** — Show a post-game summary of all moves in order for strategy review
 - [x] **Persistent game statistics** — Save stats (wins, losses, ties per difficulty) to a JSON file so they survive between sessions
-- [ ] **Animated board transitions** — Add frame-by-frame animations when placing marks instead of instant redraws
-- [ ] **Sound effects** — Terminal bell or `playsound` library for move placement, wins, and ties
+- [x] **Animated board transitions** — Add frame-by-frame animations when placing marks instead of instant redraws
+- [x] **Sound effects** — Terminal bell or `playsound` library for move placement, wins, and ties
 
 ### Architecture & Code Quality
 
@@ -150,10 +163,13 @@ A backlog of ideas for future weekends, organized by category.
 ```
 tic-tac-toe/
   tictactoe.py        # Main game file (terminal UI)
-  game_logic.py       # Core game engine (Board and AI classes)
-  test_tictactoe.py   # Unit tests
+  game_logic.py       # Core game engine (Board, AI, Tournament, GameReplay, GameStats)
+  test_tictactoe.py   # 84 unit tests
+  ISSUES.md           # Feature issue tracker
   README.md           # This file
   .gitignore          # Git ignore rules for Python
+  replays/            # Saved game replays (gitignored)
+  stats.json          # Persistent stats (gitignored)
 ```
 
 ## What We're Learning
