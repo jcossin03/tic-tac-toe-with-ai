@@ -59,6 +59,58 @@ Requires **Python 3.10+**.
 - Computer "thinking" animation
 - Difficulty display during gameplay
 
+## Future Improvements
+
+A backlog of ideas for future weekends, organized by category.
+
+### Gameplay Enhancements
+
+- [ ] **Unbeatable AI (Minimax)** — Implement the minimax algorithm as a third "Impossible" difficulty that never loses
+- [ ] **Medium difficulty** — Bridge the gap between Easy and Hard (e.g., 50% chance of making the optimal move)
+- [ ] **4x4 or 5x5 board** — Let players choose board size for more strategic variety
+- [ ] **First-move selection** — Let the player choose who goes first instead of X always starting
+- [ ] **Undo/redo moves** — Maintain a move history stack so players can take back moves
+
+### AI & Intelligence
+
+- [ ] **AI move explanation** — After each AI move, optionally show *why* it chose that move ("Blocking your win!", "Taking the center")
+- [ ] **Difficulty auto-adjustment** — Track win/loss ratio and suggest or auto-adjust difficulty when a player is dominating or struggling
+
+### UI/UX Improvements
+
+- [ ] **Highlight winning line** — When someone wins, highlight the three winning cells in a different color
+- [ ] **Move history display** — Show a post-game summary of all moves in order for strategy review
+- [ ] **Persistent game statistics** — Save stats (wins, losses, ties per difficulty) to a JSON file so they survive between sessions
+- [ ] **Animated board transitions** — Add frame-by-frame animations when placing marks instead of instant redraws
+- [ ] **Sound effects** — Terminal bell or `playsound` library for move placement, wins, and ties
+
+### Architecture & Code Quality
+
+- [ ] **Unit tests** — Create `test_tictactoe.py` with tests for win detection, AI moves, board state, and input validation
+- [ ] **Refactor into classes** — Extract `Game`, `Board`, `Player`, and `AI` classes from the procedural code
+- [ ] **Configuration file** — Move hardcoded values (board size, thinking delay, colors) into a config dict or file
+
+### New Game Modes
+
+- [ ] **Tournament mode** — Best-of-3 or best-of-5 series with bracket-style progression
+- [ ] **Timed mode** — Each player gets a time limit per move (e.g., 10 seconds)
+- [ ] **AI vs AI mode** — Watch two AI players at different difficulties play each other
+
+### Platform & Distribution
+
+- [ ] **Web version** — Port to a browser-based game using Flask or a rich TUI library like Textual
+- [ ] **Network multiplayer** — Two-player games over a local network using sockets
+
+### Recommended Starting Points
+
+| Priority | Feature | Why |
+|----------|---------|-----|
+| 1 | Minimax AI (Impossible mode) | Classic CS algorithm, natural next step for the AI |
+| 2 | Unit tests | Already listed in project structure, improves confidence |
+| 3 | Highlight winning line | Small change, big UX payoff |
+| 4 | AI move explanation | Fits the educational tone of the project |
+| 5 | Persistent stats (JSON) | Makes repeated play more rewarding |
+
 ## Project Structure
 
 ```
