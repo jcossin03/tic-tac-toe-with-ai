@@ -83,6 +83,30 @@ Requires **Python 3.10+**.
 - Persistent statistics — wins/losses/ties saved to `stats.json` across sessions
 - Lifetime stats dashboard shown at startup and exit
 
+### Weekend 9: Tournament, Timed Mode & Config
+**Status:** Complete
+
+**Python Concepts:** Threading, configuration patterns, state machines
+
+- Tournament mode — best-of-3/5/7 series with visual bracket progress
+- Timed mode — configurable per-move countdown (5/10/15 seconds) with auto-move on timeout
+- Difficulty auto-adjustment — suggests harder/easier difficulty based on win rate
+- Configuration system — `GameConfig` class centralizes all hardcoded values
+- 21 new unit tests (70 total, all passing)
+
+### Weekend 10: Animations, Replays & Achievements
+**Status:** Complete
+
+**Python Concepts:** Frame-based animation, JSON serialization, achievement patterns
+
+- Animated board transitions — marks appear with a multi-frame animation (. → + → * → X/O)
+- Winning line flash — the winning three cells flash on/off to celebrate
+- Sound effects — terminal bell on moves, wins, and ties (toggleable via config)
+- Game replay system — save games as JSON, browse and rewatch step-by-step from the menu
+- Win streak tracking — current and best streak displayed in lifetime stats
+- Achievement system — 8 milestones (First Win, Beat Impossible, streaks, Explorer, etc.)
+- 14 new unit tests (84 total, all passing)
+
 ## Future Improvements
 
 A backlog of ideas for future weekends, organized by category.
@@ -97,26 +121,26 @@ A backlog of ideas for future weekends, organized by category.
 ### AI & Intelligence
 
 - [x] **AI move explanation** — After each AI move, optionally show *why* it chose that move ("Blocking your win!", "Taking the center")
-- [ ] **Difficulty auto-adjustment** — Track win/loss ratio and suggest or auto-adjust difficulty when a player is dominating or struggling
+- [x] **Difficulty auto-adjustment** — Track win/loss ratio and suggest or auto-adjust difficulty when a player is dominating or struggling
 
 ### UI/UX Improvements
 
 - [x] **Highlight winning line** — When someone wins, highlight the three winning cells in a different color
 - [x] **Move history display** — Show a post-game summary of all moves in order for strategy review
 - [x] **Persistent game statistics** — Save stats (wins, losses, ties per difficulty) to a JSON file so they survive between sessions
-- [ ] **Animated board transitions** — Add frame-by-frame animations when placing marks instead of instant redraws
-- [ ] **Sound effects** — Terminal bell or `playsound` library for move placement, wins, and ties
+- [x] **Animated board transitions** — Add frame-by-frame animations when placing marks instead of instant redraws
+- [x] **Sound effects** — Terminal bell or `playsound` library for move placement, wins, and ties
 
 ### Architecture & Code Quality
 
 - [x] **Unit tests** — Create `test_tictactoe.py` with tests for win detection, AI moves, board state, and input validation
 - [x] **Refactor into classes** — Extract `Game`, `Board`, `Player`, and `AI` classes from the procedural code
-- [ ] **Configuration file** — Move hardcoded values (board size, thinking delay, colors) into a config dict or file
+- [x] **Configuration file** — Move hardcoded values (board size, thinking delay, colors) into a config dict or file
 
 ### New Game Modes
 
-- [ ] **Tournament mode** — Best-of-3 or best-of-5 series with bracket-style progression
-- [ ] **Timed mode** — Each player gets a time limit per move (e.g., 10 seconds)
+- [x] **Tournament mode** — Best-of-3 or best-of-5 series with bracket-style progression
+- [x] **Timed mode** — Each player gets a time limit per move (e.g., 10 seconds)
 - [x] **AI vs AI mode** — Watch two AI players at different difficulties play each other
 
 ### Platform & Distribution
@@ -139,10 +163,13 @@ A backlog of ideas for future weekends, organized by category.
 ```
 tic-tac-toe/
   tictactoe.py        # Main game file (terminal UI)
-  game_logic.py       # Core game engine (Board and AI classes)
-  test_tictactoe.py   # Unit tests
+  game_logic.py       # Core game engine (Board, AI, Tournament, GameReplay, GameStats)
+  test_tictactoe.py   # 84 unit tests
+  ISSUES.md           # Feature issue tracker
   README.md           # This file
   .gitignore          # Git ignore rules for Python
+  replays/            # Saved game replays (gitignored)
+  stats.json          # Persistent stats (gitignored)
 ```
 
 ## What We're Learning

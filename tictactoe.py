@@ -7,10 +7,12 @@
 # Weekend 7: Refactor, new AI modes, move explanations
 
 import os
+import random
 import sys
+import threading
 import time
 
-from game_logic import Board, AI, GameStats
+from game_logic import Board, AI, GameStats, GameConfig, Tournament, GameReplay
 
 # Make sure the terminal can display our fancy box characters (╔, ═, etc.)
 # This tells Python to use UTF-8 encoding for output.
@@ -87,21 +89,24 @@ def display_board(board, winning_line=None):
     """
     highlight_set = set(winning_line) if winning_line else set()
 
+    cfg = GameConfig
+    pad = " " * cfg.CELL_WIDTH
+
     print()
-    print("  ╔═════╦═════╦═════╗")
+    print("  " + cfg.BOX_TOP)
     for i in range(3):
         # Top padding row (empty space inside each cell)
-        top = "  ║"
+        top = "  " + cfg.BOX_V
         for j in range(3):
             if (i, j) in highlight_set:
-                top += BG_GREEN + "     " + RESET
+                top += BG_GREEN + pad + RESET
             else:
-                top += "     "
-            top += "║"
+                top += pad
+            top += cfg.BOX_V
         print(top)
 
         # Middle row with the actual mark/number, centered
-        mid = "  ║"
+        mid = "  " + cfg.BOX_V
         for j in range(3):
             cell = board.get_cell(i, j)
             is_hl = (i, j) in highlight_set
@@ -109,22 +114,22 @@ def display_board(board, winning_line=None):
                 mid += BG_GREEN + " " + RESET + colorize(cell, highlight=True) + BG_GREEN + " " + RESET
             else:
                 mid += "  " + colorize(cell) + "  "
-            mid += "║"
+            mid += cfg.BOX_V
         print(mid)
 
         # Bottom padding row
-        bot = "  ║"
+        bot = "  " + cfg.BOX_V
         for j in range(3):
             if (i, j) in highlight_set:
-                bot += BG_GREEN + "     " + RESET
+                bot += BG_GREEN + pad + RESET
             else:
-                bot += "     "
-            bot += "║"
+                bot += pad
+            bot += cfg.BOX_V
         print(bot)
 
         if i < 2:
-            print("  ╠═════╬═════╬═════╣")
-    print("  ╚═════╩═════╩═════╝")
+            print("  " + cfg.BOX_MID)
+    print("  " + cfg.BOX_BOT)
     print()
 
 
@@ -137,6 +142,7 @@ def display_scoreboard(names, scores):
     The box width adjusts dynamically based on the content length
     so the top and bottom borders always match.
     """
+    cfg = GameConfig
     # Build the content line first so we can measure its length
     x_name = BOLD + CYAN + names['X'] + RESET
     o_name = BOLD + RED + names['O'] + RESET
@@ -146,9 +152,9 @@ def display_scoreboard(names, scores):
     # Colored version for display
     colored = f" {x_name}: {scores['X']}  vs  {o_name}: {scores['O']}  Ties: {scores['tie']} "
     # Build the box with matching borders
-    print("  ┌" + "─" * width + "┐")
+    print("  " + cfg.SCORE_TOP_LEFT + cfg.SCORE_H * width + cfg.SCORE_TOP_RIGHT)
     print("  │" + colored + "│")
-    print("  └" + "─" * width + "┘")
+    print("  " + cfg.SCORE_BOT_LEFT + cfg.SCORE_H * width + cfg.SCORE_BOT_RIGHT)
 
 
 def display_banner(lines):
@@ -158,14 +164,15 @@ def display_banner(lines):
     Automatically sizes the box to fit the longest line.
     No emojis in the box to avoid alignment issues.
     """
+    cfg = GameConfig
     # Find the longest line to set the box width
     width = max(len(line) for line in lines) + 4  # +4 for padding
-    print("  ╔" + "═" * width + "╗")
+    print("  " + cfg.BANNER_TOP_LEFT + cfg.BANNER_H * width + cfg.BANNER_TOP_RIGHT)
     for line in lines:
         # Center each line within the box
         padded = line.center(width)
-        print("  ║" + padded + "║")
-    print("  ╚" + "═" * width + "╝")
+        print("  " + cfg.BANNER_V + padded + cfg.BANNER_V)
+    print("  " + cfg.BANNER_BOT_LEFT + cfg.BANNER_H * width + cfg.BANNER_BOT_RIGHT)
 
 
 # =========================
@@ -175,19 +182,22 @@ def display_banner(lines):
 def get_game_mode():
     """Ask the player to choose a game mode.
 
-    Returns "1" for single player, "2" for two players, or "3" for AI vs AI.
+    Returns "1" for single player, "2" for two players, "3" for AI vs AI,
+    or "4" for tournament mode.
     Uses a while loop to keep asking until we get a valid answer.
     """
     print("=== Game Mode ===")
     print(f"  {BOLD}1{RESET} - Single Player (vs Computer)")
     print(f"  {BOLD}2{RESET} - Two Players")
     print(f"  {BOLD}3{RESET} - AI vs AI (Watch Mode)")
+    print(f"  {BOLD}4{RESET} - Tournament (Best-of-N Series)")
+    print(f"  {BOLD}5{RESET} - Watch Replay")
     print()
     while True:
-        choice = input("Choose mode (1, 2, or 3): ").strip()
-        if choice in ["1", "2", "3"]:
+        choice = input("Choose mode (1-5): ").strip()
+        if choice in ["1", "2", "3", "4", "5"]:
             return choice
-        print("Please enter 1, 2, or 3.")
+        print("Please enter 1, 2, 3, 4, or 5.")
 
 
 def get_difficulty():
@@ -224,6 +234,128 @@ def get_difficulty_label(difficulty):
         "impossible": f"{MAGENTA}Impossible{RESET}",
     }
     return labels.get(difficulty, difficulty)
+
+
+def get_tournament_length():
+    """Ask the player to choose a tournament series length.
+
+    Returns 3, 5, or 7.
+    """
+    print()
+    print("=== Tournament Length ===")
+    for opt in GameConfig.TOURNAMENT_OPTIONS:
+        print(f"  {BOLD}{opt}{RESET} - Best of {opt}")
+    print()
+    valid = [str(o) for o in GameConfig.TOURNAMENT_OPTIONS]
+    while True:
+        choice = input(f"Choose series length ({', '.join(valid)}): ").strip()
+        if choice in valid:
+            return int(choice)
+        print(f"Please enter {', '.join(valid)}.")
+
+
+def get_tournament_type():
+    """Ask what type of tournament game (vs Computer or vs Player).
+
+    Returns "1" for single player or "2" for two player.
+    """
+    print()
+    print("=== Tournament Type ===")
+    print(f"  {BOLD}1{RESET} - vs Computer")
+    print(f"  {BOLD}2{RESET} - vs Player")
+    print()
+    while True:
+        choice = input("Choose (1 or 2): ").strip()
+        if choice in ["1", "2"]:
+            return choice
+        print("Please enter 1 or 2.")
+
+
+def display_tournament_status(tournament, names):
+    """Show the tournament bracket/progress between rounds."""
+    t = tournament
+    print(f"  {YELLOW}=== Tournament: Best of {t.best_of} ==={RESET}")
+    x_name = BOLD + CYAN + names['X'] + RESET
+    o_name = BOLD + RED + names['O'] + RESET
+    print(f"  {x_name}: {t.wins['X']} wins  |  {o_name}: {t.wins['O']} wins  |  Ties: {t.wins['tie']}")
+    if t.results:
+        rounds_str = "  Rounds: "
+        for i, result in enumerate(t.results, 1):
+            if result == "X":
+                rounds_str += f"{CYAN}X{RESET} "
+            elif result == "O":
+                rounds_str += f"{RED}O{RESET} "
+            else:
+                rounds_str += f"{DIM}T{RESET} "
+        print(rounds_str)
+    winner = t.get_series_winner()
+    if winner:
+        color = CYAN if winner == "X" else RED
+        print(f"  {GREEN}*** {BOLD}{color}{names[winner]}{RESET}{GREEN} wins the series! ***{RESET}")
+    elif not t.is_over():
+        print(f"  {DIM}{t.get_status_line()}{RESET}")
+    print()
+
+
+def get_timed_mode():
+    """Ask if the player wants timed moves.
+
+    Returns the time limit in seconds, or None for untimed.
+    """
+    print()
+    print("=== Timed Mode ===")
+    print(f"  {BOLD}0{RESET} - No time limit")
+    for secs in GameConfig.TIMED_MODE_OPTIONS:
+        print(f"  {BOLD}{secs}{RESET} - {secs} seconds per move")
+    print()
+    valid = ["0"] + [str(s) for s in GameConfig.TIMED_MODE_OPTIONS]
+    while True:
+        choice = input(f"Choose time limit ({', '.join(valid)}): ").strip()
+        if choice in valid:
+            val = int(choice)
+            return val if val > 0 else None
+        print(f"Please enter {', '.join(valid)}.")
+
+
+def get_timed_move(board, player, player_name, time_limit):
+    """Get a move with a countdown timer. Returns (row, col).
+
+    If the player doesn't move in time, a random valid move is made for them.
+    Uses a background thread for input so the main thread can count down.
+    """
+    color = CYAN if player == "X" else RED
+    colored_mark = BOLD + color + player + RESET
+
+    result = {"move": None}
+
+    def read_input():
+        while result["move"] is None:
+            try:
+                move = input(f"{player_name} ({colored_mark}), pick a spot (1-9) [{time_limit}s]: ")
+                if move not in "123456789" or len(move) != 1:
+                    print("Oops! Please enter a number from 1 to 9.")
+                    continue
+                row, col = Board.spot_to_coords(move)
+                if not board.is_valid_move(row, col):
+                    print("That spot is already taken! Try again.")
+                    continue
+                result["move"] = (row, col)
+                return
+            except EOFError:
+                return
+
+    input_thread = threading.Thread(target=read_input, daemon=True)
+    input_thread.start()
+    input_thread.join(timeout=time_limit)
+
+    if result["move"] is not None:
+        return result["move"]
+
+    # Time expired — pick a random valid move
+    spots = board.get_open_spots()
+    move = random.choice(spots)
+    print(f"\n{YELLOW}Time's up! A random move was made.{RESET}")
+    return move
 
 
 def get_first_player():
@@ -274,6 +406,70 @@ def get_player_names(game_mode):
         if not name_o:
             name_o = "Player O"
         return {"X": name_x, "O": name_o}
+
+
+# =========================
+# --- Animation Functions ---
+# =========================
+
+def animate_place_mark(board, row, col, player, header_fn):
+    """Animate a mark being placed on the board.
+
+    Shows a quick sequence of characters (. + * X) before the final mark.
+    header_fn is called before each frame to redraw the header above the board.
+    """
+    if not GameConfig.ANIMATION_ENABLED:
+        return
+
+    original = board.cells[row][col]
+    for frame_char in GameConfig.ANIMATION_PLACE_FRAMES:
+        board.cells[row][col] = frame_char
+        clear_screen()
+        header_fn()
+        display_board(board)
+        time.sleep(GameConfig.ANIMATION_FRAME_DELAY)
+    # Restore — the caller will place the real mark
+    board.cells[row][col] = original
+
+
+def animate_winning_line(board, winning_line, header_fn):
+    """Flash the winning line on and off to celebrate.
+
+    header_fn is called before each frame to redraw the header above the board.
+    """
+    if not GameConfig.ANIMATION_ENABLED or not winning_line:
+        return
+
+    for _ in range(GameConfig.ANIMATION_WIN_FLASHES):
+        # Flash OFF (show board without highlight)
+        clear_screen()
+        header_fn()
+        display_board(board, winning_line=None)
+        time.sleep(GameConfig.ANIMATION_WIN_FLASH_DELAY)
+
+        # Flash ON (show board with highlight)
+        clear_screen()
+        header_fn()
+        display_board(board, winning_line=winning_line)
+        time.sleep(GameConfig.ANIMATION_WIN_FLASH_DELAY)
+
+
+def play_sound(event):
+    """Play a terminal bell for game events.
+
+    event: "move", "win", "tie", or "invalid"
+    """
+    if not GameConfig.SOUND_ENABLED:
+        return
+    if event == "win":
+        sys.stdout.write("\a")
+        sys.stdout.flush()
+        time.sleep(0.1)
+        sys.stdout.write("\a")
+        sys.stdout.flush()
+    elif event in ("move", "tie", "invalid"):
+        sys.stdout.write("\a")
+        sys.stdout.flush()
 
 
 # =========================
@@ -342,17 +538,19 @@ def display_move_history(move_log, names):
     print()
 
 
-def play_game(board, names, scores, game_mode, difficulty, ai=None, ai_x=None, first_player="X"):
+def play_game(board, names, scores, game_mode, difficulty, ai=None, ai_x=None, first_player="X", time_limit=None):
     """Play one complete game of tic-tac-toe.
 
     This function contains the turn-by-turn game loop.
     It updates the scores dictionary when the game ends.
     In 1-player mode, the computer automatically takes its turn.
     In AI vs AI mode, both players are controlled by AI.
+    time_limit: seconds per move, or None for unlimited.
     Returns the winner ("X", "O") or None (tie).
     """
     current_player = first_player
     move_log = []
+    replay = GameReplay()
 
     # The game loop - keeps going for up to 9 turns (the whole board)
     for turn in range(9):
@@ -372,27 +570,40 @@ def play_game(board, names, scores, game_mode, difficulty, ai=None, ai_x=None, f
             # Computer's turn
             color = CYAN if current_player == "X" else RED
             print(f"{MAGENTA}{names[current_player]} is thinking...{RESET}")
-            time.sleep(0.8 if game_mode == "1" else 0.5)
+            delay = GameConfig.AI_THINK_DELAY_SINGLE if game_mode == "1" else GameConfig.AI_THINK_DELAY_AI_VS_AI
+            time.sleep(delay)
 
             row, col = active_ai.get_move(board)
         else:
-            # Human's turn - ask for input
-            row, col = get_move(board, current_player, names[current_player])
+            # Human's turn - ask for input (with optional timer)
+            if time_limit:
+                row, col = get_timed_move(board, current_player, names[current_player], time_limit)
+            else:
+                row, col = get_move(board, current_player, names[current_player])
+
+        # Helper to redraw the header area (used for animations)
+        def draw_header():
+            print("=== Tic-Tac-Toe ===")
+            if game_mode == "1":
+                diff_label = get_difficulty_label(difficulty)
+                print(f"  Mode: vs Computer ({diff_label})")
+            elif game_mode == "3":
+                print(f"  Mode: AI vs AI (watching)")
+            display_scoreboard(names, scores)
+
+        # Animate the mark being placed (before actually placing it)
+        animate_place_mark(board, row, col, current_player, draw_header)
 
         # Place their mark on the board
         board.place_move(row, col, current_player)
         spot_number = Board.coords_to_spot(row, col)
         move_log.append((current_player, spot_number))
+        replay.record_move(current_player, spot_number)
+        play_sound("move")
 
         # Clear screen and redraw everything
         clear_screen()
-        print("=== Tic-Tac-Toe ===")
-        if game_mode == "1":
-            diff_label = get_difficulty_label(difficulty)
-            print(f"  Mode: vs Computer ({diff_label})")
-        elif game_mode == "3":
-            print(f"  Mode: AI vs AI (watching)")
-        display_scoreboard(names, scores)
+        draw_header()
 
         # Check if the current player just won!
         winner = board.check_winner()
@@ -409,18 +620,24 @@ def play_game(board, names, scores, game_mode, difficulty, ai=None, ai_x=None, f
             print()
 
         if winner:
+            # Flash the winning line
+            animate_winning_line(board, winning_line, draw_header)
+            play_sound("win")
             color = CYAN if winner == "X" else RED
             print(f"{GREEN}*** {BOLD}{color}{names[winner]}{RESET}{GREEN} ({BOLD}{color}{winner}{RESET}{GREEN}) wins! Congratulations! ***{RESET}")
             scores[winner] += 1
+            replay.set_metadata(names, game_mode, difficulty, winner)
             display_move_history(move_log, names)
-            return winner
+            return winner, replay
 
         # Check if the board is full (tie game)
         if board.is_full():
+            play_sound("tie")
             print(f"{YELLOW}It's a tie! Great game, everyone!{RESET}")
             scores["tie"] += 1
+            replay.set_metadata(names, game_mode, difficulty, None)
             display_move_history(move_log, names)
-            return None
+            return None, replay
 
         # Switch to the other player
         if current_player == "X":
@@ -433,9 +650,110 @@ def play_game(board, names, scores, game_mode, difficulty, ai=None, ai_x=None, f
             input(f"{DIM}Press Enter to continue...{RESET}")
 
 
+def offer_save_replay(replay):
+    """Ask if the player wants to save the game replay."""
+    while True:
+        answer = input(f"{DIM}Save replay? (y/n): {RESET}").strip().lower()
+        if answer in ["y", "yes"]:
+            filepath = replay.save()
+            print(f"  {GREEN}Replay saved to {filepath}{RESET}")
+            return
+        elif answer in ["n", "no"]:
+            return
+        print("Please enter 'y' or 'n'.")
+
+
+def watch_replay(replay):
+    """Play back a saved game replay step by step."""
+    board = Board()
+    names = replay.names
+    scores = {"X": 0, "O": 0, "tie": 0}
+
+    clear_screen()
+    display_banner(["Game Replay"])
+    print(f"  {names.get('X', 'X')} vs {names.get('O', 'O')}")
+    if replay.difficulty:
+        print(f"  Difficulty: {replay.difficulty}")
+    print()
+    display_board(board)
+    input(f"{DIM}Press Enter to start replay...{RESET}")
+
+    for i, move in enumerate(replay.moves, 1):
+        player = move["player"]
+        spot = move["spot"]
+        row, col = Board.spot_to_coords(str(spot))
+        board.place_move(row, col, player)
+
+        clear_screen()
+        print(f"=== Replay (Move {i}/{len(replay.moves)}) ===")
+
+        winner = board.check_winner()
+        winning_line = board.get_winning_line() if winner else None
+        display_board(board, winning_line=winning_line)
+
+        color = CYAN if player == "X" else RED
+        mark = BOLD + color + player + RESET
+        print(f"  {names.get(player, player)} ({mark}) -> spot {spot}")
+
+        if winner:
+            color = CYAN if winner == "X" else RED
+            print(f"\n{GREEN}*** {BOLD}{color}{names.get(winner, winner)}{RESET}{GREEN} wins! ***{RESET}")
+        elif board.is_full():
+            print(f"\n{YELLOW}It's a tie!{RESET}")
+
+        if i < len(replay.moves):
+            input(f"{DIM}Press Enter for next move...{RESET}")
+
+    print()
+    input(f"{DIM}Replay complete. Press Enter to continue...{RESET}")
+
+
+def replay_menu():
+    """Show available replays and let the user pick one to watch."""
+    replays = GameReplay.list_replays()
+    if not replays:
+        print(f"  {DIM}No saved replays found.{RESET}")
+        print()
+        return
+
+    print("=== Saved Replays ===")
+    for i, filename in enumerate(replays[:10], 1):  # show last 10
+        print(f"  {BOLD}{i}{RESET} - {filename}")
+    print(f"  {BOLD}0{RESET} - Back")
+    print()
+
+    while True:
+        choice = input("Choose replay (0 to go back): ").strip()
+        if choice == "0":
+            return
+        try:
+            idx = int(choice) - 1
+            if 0 <= idx < len(replays[:10]):
+                import os
+                filepath = os.path.join(GameReplay.REPLAY_DIR, replays[idx])
+                replay = GameReplay.load(filepath)
+                watch_replay(replay)
+                return
+        except (ValueError, IndexError):
+            pass
+        print("Please enter a valid number.")
+
+
 # ======================
 # --- Program Start! ---
 # ======================
+
+def display_new_achievements(stats, old_count):
+    """Show any newly unlocked achievements."""
+    new = stats.get_new_achievements(old_count)
+    if not new:
+        return
+    achievement_map = {a[0]: (a[1], a[2]) for a in GameStats.ACHIEVEMENTS}
+    for ach_id in new:
+        name, desc = achievement_map.get(ach_id, (ach_id, ""))
+        print(f"  {YELLOW}*** Achievement Unlocked: {BOLD}{name}{RESET}{YELLOW} — {desc} ***{RESET}")
+    print()
+
 
 def display_lifetime_stats(stats):
     """Show a summary of lifetime game statistics."""
@@ -457,7 +775,16 @@ def display_lifetime_stats(stats):
     tp_total = tp.get("wins_x", 0) + tp.get("wins_o", 0) + tp.get("ties", 0)
     if tp_total > 0:
         print(f"  Two Player: X {tp['wins_x']}W / O {tp['wins_o']}W / {tp['ties']}T ({tp_total} games)")
+    streaks = stats.get_streaks()
+    if streaks["best"] > 0:
+        print(f"  Win streak: {streaks['current']} current / {streaks['best']} best")
     print(f"  Total games played: {total}")
+    # Show achievements
+    achievements = stats.get_achievements()
+    if achievements:
+        achievement_map = {a[0]: a[1] for a in GameStats.ACHIEVEMENTS}
+        names_list = [achievement_map.get(a, a) for a in achievements]
+        print(f"  Achievements ({len(achievements)}/{len(GameStats.ACHIEVEMENTS)}): {', '.join(names_list)}")
     print()
 
 
@@ -472,18 +799,35 @@ if __name__ == "__main__":
     # Show lifetime stats if any games have been played
     display_lifetime_stats(stats)
 
-    # Choose game mode: 1 player, 2 players, or AI vs AI
+    # Choose game mode: 1 player, 2 players, AI vs AI, tournament, or replay
     game_mode = get_game_mode()
+
+    # Replay mode: watch a saved game and exit
+    if game_mode == "5":
+        replay_menu()
+        print("See you next time!")
+        sys.exit(0)
+
+    # Tournament mode wraps around single-player or two-player
+    tournament = None
+    tournament_game_mode = None
+    if game_mode == "4":
+        best_of = get_tournament_length()
+        tournament = Tournament(best_of)
+        tournament_game_mode = get_tournament_type()
+    else:
+        tournament_game_mode = game_mode
 
     # If single player or AI vs AI, choose difficulty
     difficulty = None
     difficulty_x = None
     ai = None
     ai_x = None
-    if game_mode == "1":
+    effective_mode = tournament_game_mode if game_mode == "4" else game_mode
+    if effective_mode == "1":
         difficulty = get_difficulty()
         ai = AI(difficulty, mark="O", opponent_mark="X")
-    elif game_mode == "3":
+    elif effective_mode == "3":
         print()
         print(f"=== {BOLD}{CYAN}AI-X{RESET} Difficulty ===")
         difficulty_x = get_difficulty()
@@ -494,15 +838,20 @@ if __name__ == "__main__":
         ai = AI(difficulty, mark="O", opponent_mark="X")
 
     # Get player names (automatic in AI vs AI mode)
-    names = get_player_names(game_mode)
-    if game_mode == "3":
+    names = get_player_names(effective_mode)
+    if effective_mode == "3":
         names["X"] = f"AI-X ({difficulty_x.title()})"
         names["O"] = f"AI-O ({difficulty.title()})"
 
     # Choose who goes first
     first_player = "X"
-    if game_mode in ["1", "2"]:
+    if effective_mode in ["1", "2"]:
         first_player = get_first_player()
+
+    # Offer timed mode for human-involved games
+    time_limit = None
+    if effective_mode in ["1", "2"]:
+        time_limit = get_timed_mode()
 
     # Scores are stored in a dictionary - easy to look up by key
     scores = {"X": 0, "O": 0, "tie": 0}
@@ -516,11 +865,15 @@ if __name__ == "__main__":
         # Show the starting state
         clear_screen()
         print("=== Tic-Tac-Toe ===")
-        if game_mode == "1":
+        if effective_mode == "1":
             diff_label = get_difficulty_label(difficulty)
             print(f"  Mode: vs Computer ({diff_label})")
-        elif game_mode == "3":
+        elif effective_mode == "3":
             print(f"  Mode: AI vs AI")
+        if time_limit:
+            print(f"  Timer: {YELLOW}{time_limit}s per move{RESET}")
+        if tournament and not tournament.is_over():
+            display_tournament_status(tournament, names)
         display_scoreboard(names, scores)
         display_board(board)
         color = CYAN if first_player == "X" else RED
@@ -529,18 +882,53 @@ if __name__ == "__main__":
         print()
 
         # Play one complete game
-        winner = play_game(board, names, scores, game_mode, difficulty,
-                           ai=ai, ai_x=ai_x, first_player=first_player)
+        result = play_game(board, names, scores, effective_mode, difficulty,
+                           ai=ai, ai_x=ai_x, first_player=first_player,
+                           time_limit=time_limit)
+        winner, game_replay = result
 
         # Record result in persistent stats
-        if game_mode != "3":
-            stats.record_game(game_mode, difficulty, winner)
+        old_achievement_count = len(stats.get_achievements())
+        if effective_mode != "3":
+            stats.record_game(effective_mode, difficulty, winner)
 
-        # Show final score and ask to play again
+        # Show final score
         print()
         display_scoreboard(names, scores)
         print()
-        playing = play_again()
+
+        # Show newly unlocked achievements
+        display_new_achievements(stats, old_achievement_count)
+
+        # Offer to save replay
+        offer_save_replay(game_replay)
+
+        # Suggest difficulty adjustment (single-player only)
+        if effective_mode == "1" and difficulty:
+            suggestion = stats.get_difficulty_suggestion(difficulty)
+            if suggestion == "up":
+                idx = AI.DIFFICULTIES.index(difficulty)
+                next_diff = AI.DIFFICULTIES[idx + 1]
+                label = get_difficulty_label(next_diff)
+                print(f"  {YELLOW}You're dominating! Consider trying {label}{YELLOW} difficulty.{RESET}")
+                print()
+            elif suggestion == "down":
+                idx = AI.DIFFICULTIES.index(difficulty)
+                prev_diff = AI.DIFFICULTIES[idx - 1]
+                label = get_difficulty_label(prev_diff)
+                print(f"  {YELLOW}Having a tough time? Try {label}{YELLOW} difficulty.{RESET}")
+                print()
+
+        # Tournament mode: record round and check if series is over
+        if tournament:
+            series_over = tournament.record_round(winner)
+            display_tournament_status(tournament, names)
+            if series_over:
+                playing = False
+            else:
+                input(f"{DIM}Press Enter for next round...{RESET}")
+        else:
+            playing = play_again()
 
     # Goodbye message
     clear_screen()
@@ -549,5 +937,7 @@ if __name__ == "__main__":
     print("=== Final Scores ===")
     display_scoreboard(names, scores)
     print()
+    if tournament:
+        display_tournament_status(tournament, names)
     display_lifetime_stats(stats)
     print("See you next time!")

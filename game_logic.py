@@ -9,6 +9,58 @@ import random
 import math
 
 
+class GameConfig:
+    """Centralized configuration for all game settings."""
+
+    # AI thinking delays (seconds)
+    AI_THINK_DELAY_SINGLE = 0.8
+    AI_THINK_DELAY_AI_VS_AI = 0.5
+
+    # Timed mode defaults (seconds)
+    TIMED_MODE_OPTIONS = [5, 10, 15]
+    TIMED_MODE_DEFAULT = 10
+
+    # Tournament series lengths
+    TOURNAMENT_OPTIONS = [3, 5, 7]
+
+    # Difficulty auto-adjustment thresholds
+    ADJUST_MIN_GAMES = 5
+    ADJUST_UPGRADE_WIN_RATE = 0.70
+    ADJUST_DOWNGRADE_WIN_RATE = 0.20
+
+    # Board display characters
+    BOX_TOP = "╔═════╦═════╦═════╗"
+    BOX_MID = "╠═════╬═════╬═════╣"
+    BOX_BOT = "╚═════╩═════╩═════╝"
+    BOX_V = "║"
+    CELL_WIDTH = 5
+
+    # Banner display characters
+    BANNER_TOP_LEFT = "╔"
+    BANNER_TOP_RIGHT = "╗"
+    BANNER_BOT_LEFT = "╚"
+    BANNER_BOT_RIGHT = "╝"
+    BANNER_H = "═"
+    BANNER_V = "║"
+
+    # Scoreboard display characters
+    SCORE_TOP_LEFT = "┌"
+    SCORE_TOP_RIGHT = "┐"
+    SCORE_BOT_LEFT = "└"
+    SCORE_BOT_RIGHT = "┘"
+    SCORE_H = "─"
+
+    # Animation settings
+    ANIMATION_ENABLED = True
+    ANIMATION_PLACE_FRAMES = [".", "+", "*"]  # frames before the final mark
+    ANIMATION_FRAME_DELAY = 0.08  # seconds between animation frames
+    ANIMATION_WIN_FLASHES = 3  # number of times the winning line flashes
+    ANIMATION_WIN_FLASH_DELAY = 0.15  # seconds per flash on/off
+
+    # Sound settings
+    SOUND_ENABLED = True
+
+
 class Board:
     """Represents a tic-tac-toe board and its rules."""
 
@@ -293,6 +345,122 @@ class AI:
         return None
 
 
+class Tournament:
+    """Tracks a best-of-N series between two players."""
+
+    def __init__(self, best_of):
+        if best_of not in GameConfig.TOURNAMENT_OPTIONS:
+            raise ValueError(f"Series length must be one of {GameConfig.TOURNAMENT_OPTIONS}")
+        self.best_of = best_of
+        self.wins_needed = best_of // 2 + 1
+        self.wins = {"X": 0, "O": 0, "tie": 0}
+        self.round_number = 0
+        self.results = []  # list of "X", "O", or None per round
+
+    def record_round(self, winner):
+        """Record the result of a round. Returns True if series is over."""
+        self.round_number += 1
+        self.results.append(winner)
+        if winner == "X":
+            self.wins["X"] += 1
+        elif winner == "O":
+            self.wins["O"] += 1
+        else:
+            self.wins["tie"] += 1
+        return self.is_over()
+
+    def is_over(self):
+        """Return True if a player has clinched the series."""
+        return self.wins["X"] >= self.wins_needed or self.wins["O"] >= self.wins_needed
+
+    def get_series_winner(self):
+        """Return 'X', 'O', or None if no one has clinched yet."""
+        if self.wins["X"] >= self.wins_needed:
+            return "X"
+        if self.wins["O"] >= self.wins_needed:
+            return "O"
+        return None
+
+    def get_status_line(self):
+        """Return a short status string like 'Round 2/3 | X leads 1-0'."""
+        x_w = self.wins["X"]
+        o_w = self.wins["O"]
+        if x_w > o_w:
+            lead = f"X leads {x_w}-{o_w}"
+        elif o_w > x_w:
+            lead = f"O leads {o_w}-{x_w}"
+        elif x_w == 0:
+            lead = "Series starting"
+        else:
+            lead = f"Tied {x_w}-{o_w}"
+        return f"Round {self.round_number + 1}/{self.best_of} | {lead}"
+
+
+class GameReplay:
+    """Save and load game replays as JSON files."""
+
+    REPLAY_DIR = "replays"
+
+    def __init__(self):
+        self.moves = []  # list of {"player": "X"/"O", "spot": 1-9}
+        self.names = {}
+        self.game_mode = ""
+        self.difficulty = None
+        self.winner = None
+
+    def record_move(self, player, spot):
+        """Record a single move."""
+        self.moves.append({"player": player, "spot": spot})
+
+    def set_metadata(self, names, game_mode, difficulty, winner):
+        """Set game metadata after the game ends."""
+        self.names = dict(names)
+        self.game_mode = game_mode
+        self.difficulty = difficulty
+        self.winner = winner
+
+    def save(self, filename=None):
+        """Save the replay to a JSON file. Returns the filepath."""
+        os.makedirs(self.REPLAY_DIR, exist_ok=True)
+        if filename is None:
+            import time as _time
+            timestamp = _time.strftime("%Y%m%d_%H%M%S")
+            filename = f"replay_{timestamp}.json"
+        filepath = os.path.join(self.REPLAY_DIR, filename)
+        data = {
+            "names": self.names,
+            "game_mode": self.game_mode,
+            "difficulty": self.difficulty,
+            "winner": self.winner,
+            "moves": self.moves,
+        }
+        with open(filepath, "w") as f:
+            json.dump(data, f, indent=2)
+        return filepath
+
+    @classmethod
+    def load(cls, filepath):
+        """Load a replay from a JSON file."""
+        with open(filepath, "r") as f:
+            data = json.load(f)
+        replay = cls()
+        replay.names = data["names"]
+        replay.game_mode = data["game_mode"]
+        replay.difficulty = data.get("difficulty")
+        replay.winner = data.get("winner")
+        replay.moves = data["moves"]
+        return replay
+
+    @classmethod
+    def list_replays(cls):
+        """Return a list of replay filenames sorted by most recent."""
+        if not os.path.exists(cls.REPLAY_DIR):
+            return []
+        files = [f for f in os.listdir(cls.REPLAY_DIR) if f.endswith(".json")]
+        files.sort(reverse=True)
+        return files
+
+
 class GameStats:
     """Persistent game statistics saved to a JSON file."""
 
@@ -314,34 +482,6 @@ class GameStats:
         with open(self.filepath, "w") as f:
             json.dump(self.data, f, indent=2)
 
-    def record_game(self, game_mode, difficulty, winner):
-        """Record the result of a game.
-
-        game_mode: "1" (single player) or "2" (two player)
-        difficulty: AI difficulty string, or None for two-player
-        winner: "X", "O", or None (tie)
-        """
-        if game_mode == "1":
-            sp = self.data["single_player"]
-            if difficulty not in sp:
-                sp[difficulty] = {"wins": 0, "losses": 0, "ties": 0}
-            entry = sp[difficulty]
-            if winner == "X":
-                entry["wins"] += 1
-            elif winner == "O":
-                entry["losses"] += 1
-            else:
-                entry["ties"] += 1
-        else:
-            tp = self.data["two_player"]
-            if winner == "X":
-                tp["wins_x"] += 1
-            elif winner == "O":
-                tp["wins_o"] += 1
-            else:
-                tp["ties"] += 1
-        self.save()
-
     def get_single_player_stats(self):
         """Return the single player stats dict."""
         return self.data.get("single_player", {})
@@ -358,3 +498,132 @@ class GameStats:
         tp = self.data.get("two_player", {})
         total += tp.get("wins_x", 0) + tp.get("wins_o", 0) + tp.get("ties", 0)
         return total
+
+    # Achievement definitions: (id, description, check_function_name)
+    ACHIEVEMENTS = [
+        ("first_win", "First Win", "Won your first game"),
+        ("first_impossible_win", "Impossible Victor", "Beat the Impossible AI"),
+        ("streak_3", "Hot Streak", "Won 3 games in a row"),
+        ("streak_5", "On Fire", "Won 5 games in a row"),
+        ("streak_10", "Unstoppable", "Won 10 games in a row"),
+        ("played_10", "Veteran", "Played 10 total games"),
+        ("played_50", "Dedicated", "Played 50 total games"),
+        ("all_difficulties", "Explorer", "Won on every difficulty level"),
+    ]
+
+    def _ensure_streaks(self):
+        """Make sure streak and achievement data structures exist."""
+        if "streaks" not in self.data:
+            self.data["streaks"] = {"current": 0, "best": 0}
+        if "achievements" not in self.data:
+            self.data["achievements"] = []
+
+    def record_game(self, game_mode, difficulty, winner):
+        """Record the result of a game.
+
+        game_mode: "1" (single player) or "2" (two player)
+        difficulty: AI difficulty string, or None for two-player
+        winner: "X", "O", or None (tie)
+        """
+        self._ensure_streaks()
+        if game_mode == "1":
+            sp = self.data["single_player"]
+            if difficulty not in sp:
+                sp[difficulty] = {"wins": 0, "losses": 0, "ties": 0}
+            entry = sp[difficulty]
+            if winner == "X":
+                entry["wins"] += 1
+                self.data["streaks"]["current"] += 1
+                if self.data["streaks"]["current"] > self.data["streaks"]["best"]:
+                    self.data["streaks"]["best"] = self.data["streaks"]["current"]
+            elif winner == "O":
+                entry["losses"] += 1
+                self.data["streaks"]["current"] = 0
+            else:
+                entry["ties"] += 1
+                self.data["streaks"]["current"] = 0
+        else:
+            tp = self.data["two_player"]
+            if winner == "X":
+                tp["wins_x"] += 1
+            elif winner == "O":
+                tp["wins_o"] += 1
+            else:
+                tp["ties"] += 1
+        self._check_achievements(game_mode, difficulty, winner)
+        self.save()
+
+    def _check_achievements(self, game_mode, difficulty, winner):
+        """Check and unlock any new achievements."""
+        unlocked = self.data["achievements"]
+        sp = self.data.get("single_player", {})
+
+        # First Win
+        if "first_win" not in unlocked and winner == "X" and game_mode == "1":
+            unlocked.append("first_win")
+
+        # Beat Impossible
+        if "first_impossible_win" not in unlocked and winner == "X" and difficulty == "impossible":
+            unlocked.append("first_impossible_win")
+
+        # Streaks
+        current_streak = self.data["streaks"]["current"]
+        if "streak_3" not in unlocked and current_streak >= 3:
+            unlocked.append("streak_3")
+        if "streak_5" not in unlocked and current_streak >= 5:
+            unlocked.append("streak_5")
+        if "streak_10" not in unlocked and current_streak >= 10:
+            unlocked.append("streak_10")
+
+        # Games played
+        total = self.get_total_games()
+        if "played_10" not in unlocked and total >= 10:
+            unlocked.append("played_10")
+        if "played_50" not in unlocked and total >= 50:
+            unlocked.append("played_50")
+
+        # All difficulties
+        if "all_difficulties" not in unlocked:
+            all_won = all(
+                diff in sp and sp[diff]["wins"] > 0
+                for diff in AI.DIFFICULTIES
+            )
+            if all_won:
+                unlocked.append("all_difficulties")
+
+    def get_streaks(self):
+        """Return current and best streak."""
+        self._ensure_streaks()
+        return self.data["streaks"]
+
+    def get_achievements(self):
+        """Return list of unlocked achievement IDs."""
+        self._ensure_streaks()
+        return self.data["achievements"]
+
+    def get_new_achievements(self, old_count):
+        """Return achievements unlocked since old_count."""
+        self._ensure_streaks()
+        return self.data["achievements"][old_count:]
+
+    def get_difficulty_suggestion(self, current_difficulty):
+        """Suggest a difficulty change based on win rate.
+
+        Returns "up", "down", or None. Only suggests after enough games
+        at the current difficulty (configured in GameConfig).
+        """
+        sp = self.data.get("single_player", {})
+        if current_difficulty not in sp:
+            return None
+        entry = sp[current_difficulty]
+        total = entry["wins"] + entry["losses"] + entry["ties"]
+        if total < GameConfig.ADJUST_MIN_GAMES:
+            return None
+        win_rate = entry["wins"] / total
+        difficulties = AI.DIFFICULTIES
+        idx = difficulties.index(current_difficulty) if current_difficulty in difficulties else -1
+        if win_rate >= GameConfig.ADJUST_UPGRADE_WIN_RATE and idx < len(difficulties) - 1:
+            return "up"
+        if win_rate <= GameConfig.ADJUST_DOWNGRADE_WIN_RATE and idx > 0:
+            return "down"
+        return None
