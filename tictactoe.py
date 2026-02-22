@@ -408,6 +408,70 @@ def get_player_names(game_mode):
 
 
 # =========================
+# --- Animation Functions ---
+# =========================
+
+def animate_place_mark(board, row, col, player, header_fn):
+    """Animate a mark being placed on the board.
+
+    Shows a quick sequence of characters (. + * X) before the final mark.
+    header_fn is called before each frame to redraw the header above the board.
+    """
+    if not GameConfig.ANIMATION_ENABLED:
+        return
+
+    original = board.cells[row][col]
+    for frame_char in GameConfig.ANIMATION_PLACE_FRAMES:
+        board.cells[row][col] = frame_char
+        clear_screen()
+        header_fn()
+        display_board(board)
+        time.sleep(GameConfig.ANIMATION_FRAME_DELAY)
+    # Restore — the caller will place the real mark
+    board.cells[row][col] = original
+
+
+def animate_winning_line(board, winning_line, header_fn):
+    """Flash the winning line on and off to celebrate.
+
+    header_fn is called before each frame to redraw the header above the board.
+    """
+    if not GameConfig.ANIMATION_ENABLED or not winning_line:
+        return
+
+    for _ in range(GameConfig.ANIMATION_WIN_FLASHES):
+        # Flash OFF (show board without highlight)
+        clear_screen()
+        header_fn()
+        display_board(board, winning_line=None)
+        time.sleep(GameConfig.ANIMATION_WIN_FLASH_DELAY)
+
+        # Flash ON (show board with highlight)
+        clear_screen()
+        header_fn()
+        display_board(board, winning_line=winning_line)
+        time.sleep(GameConfig.ANIMATION_WIN_FLASH_DELAY)
+
+
+def play_sound(event):
+    """Play a terminal bell for game events.
+
+    event: "move", "win", "tie", or "invalid"
+    """
+    if not GameConfig.SOUND_ENABLED:
+        return
+    if event == "win":
+        sys.stdout.write("\a")
+        sys.stdout.flush()
+        time.sleep(0.1)
+        sys.stdout.write("\a")
+        sys.stdout.flush()
+    elif event in ("move", "tie", "invalid"):
+        sys.stdout.write("\a")
+        sys.stdout.flush()
+
+
+# =========================
 # --- Game Logic ---
 # =========================
 
@@ -515,20 +579,28 @@ def play_game(board, names, scores, game_mode, difficulty, ai=None, ai_x=None, f
             else:
                 row, col = get_move(board, current_player, names[current_player])
 
+        # Helper to redraw the header area (used for animations)
+        def draw_header():
+            print("=== Tic-Tac-Toe ===")
+            if game_mode == "1":
+                diff_label = get_difficulty_label(difficulty)
+                print(f"  Mode: vs Computer ({diff_label})")
+            elif game_mode == "3":
+                print(f"  Mode: AI vs AI (watching)")
+            display_scoreboard(names, scores)
+
+        # Animate the mark being placed (before actually placing it)
+        animate_place_mark(board, row, col, current_player, draw_header)
+
         # Place their mark on the board
         board.place_move(row, col, current_player)
         spot_number = Board.coords_to_spot(row, col)
         move_log.append((current_player, spot_number))
+        play_sound("move")
 
         # Clear screen and redraw everything
         clear_screen()
-        print("=== Tic-Tac-Toe ===")
-        if game_mode == "1":
-            diff_label = get_difficulty_label(difficulty)
-            print(f"  Mode: vs Computer ({diff_label})")
-        elif game_mode == "3":
-            print(f"  Mode: AI vs AI (watching)")
-        display_scoreboard(names, scores)
+        draw_header()
 
         # Check if the current player just won!
         winner = board.check_winner()
@@ -545,6 +617,9 @@ def play_game(board, names, scores, game_mode, difficulty, ai=None, ai_x=None, f
             print()
 
         if winner:
+            # Flash the winning line
+            animate_winning_line(board, winning_line, draw_header)
+            play_sound("win")
             color = CYAN if winner == "X" else RED
             print(f"{GREEN}*** {BOLD}{color}{names[winner]}{RESET}{GREEN} ({BOLD}{color}{winner}{RESET}{GREEN}) wins! Congratulations! ***{RESET}")
             scores[winner] += 1
@@ -553,6 +628,7 @@ def play_game(board, names, scores, game_mode, difficulty, ai=None, ai_x=None, f
 
         # Check if the board is full (tie game)
         if board.is_full():
+            play_sound("tie")
             print(f"{YELLOW}It's a tie! Great game, everyone!{RESET}")
             scores["tie"] += 1
             display_move_history(move_log, names)

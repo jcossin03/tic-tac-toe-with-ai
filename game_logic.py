@@ -50,6 +50,16 @@ class GameConfig:
     SCORE_BOT_RIGHT = "┘"
     SCORE_H = "─"
 
+    # Animation settings
+    ANIMATION_ENABLED = True
+    ANIMATION_PLACE_FRAMES = [".", "+", "*"]  # frames before the final mark
+    ANIMATION_FRAME_DELAY = 0.08  # seconds between animation frames
+    ANIMATION_WIN_FLASHES = 3  # number of times the winning line flashes
+    ANIMATION_WIN_FLASH_DELAY = 0.15  # seconds per flash on/off
+
+    # Sound settings
+    SOUND_ENABLED = True
+
 
 class Board:
     """Represents a tic-tac-toe board and its rules."""
