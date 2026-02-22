@@ -4,11 +4,13 @@
 # Weekend 3: Winning & Ending
 # Weekend 4: Polish & Features
 # Weekend 5-6: AI Player
+# Weekend 7: Refactor, new AI modes, move explanations
 
 import os
 import sys
-import random
 import time
+
+from game_logic import Board, AI
 
 # Make sure the terminal can display our fancy box characters (╔, ═, etc.)
 # This tells Python to use UTF-8 encoding for output.
@@ -37,16 +39,20 @@ RED = "\033[91m"         # Bright red (for O)
 YELLOW = "\033[93m"      # Bright yellow (for banners)
 GREEN = "\033[92m"       # Bright green (for win messages)
 MAGENTA = "\033[95m"     # Bright magenta (for computer player)
+BG_GREEN = "\033[42m"    # Green background (for winning line highlight)
+WHITE = "\033[97m"       # Bright white (for winning marks on green bg)
 
 
-def colorize(text):
+def colorize(text, highlight=False):
     """Add color to a board character based on what it is.
 
     - Numbers (available spots): dim gray so they're subtle
     - X marks: bold cyan so they pop
     - O marks: bold red so they're clearly different from X
-    - Anything else: no color
+    - If highlight=True: green background to show the winning line
     """
+    if highlight and text in ["X", "O"]:
+        return BG_GREEN + BOLD + WHITE + " " + text + " " + RESET
     if text == "X":
         return BOLD + CYAN + text + RESET
     elif text == "O":
@@ -72,24 +78,50 @@ def clear_screen():
     os.system("cls" if os.name == "nt" else "clear")
 
 
-def display_board(board):
+def display_board(board, winning_line=None):
     """Show the tic-tac-toe board in a large, colorful format.
 
     Each cell is 3 rows tall and 5 characters wide so the board
     is easy to read. Colors make X, O, and numbers visually distinct.
+    If winning_line is provided, those cells get a green background.
     """
+    highlight_set = set(winning_line) if winning_line else set()
+
     print()
     print("  ╔═════╦═════╦═════╗")
-    for i, row in enumerate(board):
+    for i in range(3):
         # Top padding row (empty space inside each cell)
-        print("  ║     ║     ║     ║")
+        top = "  ║"
+        for j in range(3):
+            if (i, j) in highlight_set:
+                top += BG_GREEN + "     " + RESET
+            else:
+                top += "     "
+            top += "║"
+        print(top)
+
         # Middle row with the actual mark/number, centered
-        c0 = colorize(row[0])
-        c1 = colorize(row[1])
-        c2 = colorize(row[2])
-        print(f"  ║  {c0}  ║  {c1}  ║  {c2}  ║")
+        mid = "  ║"
+        for j in range(3):
+            cell = board.get_cell(i, j)
+            is_hl = (i, j) in highlight_set
+            if is_hl:
+                mid += BG_GREEN + " " + RESET + colorize(cell, highlight=True) + BG_GREEN + " " + RESET
+            else:
+                mid += "  " + colorize(cell) + "  "
+            mid += "║"
+        print(mid)
+
         # Bottom padding row
-        print("  ║     ║     ║     ║")
+        bot = "  ║"
+        for j in range(3):
+            if (i, j) in highlight_set:
+                bot += BG_GREEN + "     " + RESET
+            else:
+                bot += "     "
+            bot += "║"
+        print(bot)
+
         if i < 2:
             print("  ╠═════╬═════╬═════╣")
     print("  ╚═════╩═════╩═════╝")
@@ -160,21 +192,37 @@ def get_game_mode():
 def get_difficulty():
     """Ask the player to choose a difficulty level for the computer.
 
-    Returns "easy" or "hard".
-    Easy = random moves. Hard = smart strategy (blocks and wins).
+    Returns "easy", "medium", "hard", or "impossible".
     """
     print()
     print("=== Difficulty ===")
-    print(f"  {BOLD}{GREEN}1{RESET} - Easy   (computer picks randomly)")
-    print(f"  {BOLD}{RED}2{RESET} - Hard   (computer tries to win and blocks you)")
+    print(f"  {BOLD}{GREEN}1{RESET} - Easy       (computer picks randomly)")
+    print(f"  {BOLD}{YELLOW}2{RESET} - Medium     (mix of random and strategic)")
+    print(f"  {BOLD}{RED}3{RESET} - Hard       (computer tries to win and blocks you)")
+    print(f"  {BOLD}{MAGENTA}4{RESET} - Impossible (computer never loses - minimax AI)")
     print()
     while True:
-        choice = input("Choose difficulty (1 or 2): ").strip()
+        choice = input("Choose difficulty (1-4): ").strip()
         if choice == "1":
             return "easy"
         elif choice == "2":
+            return "medium"
+        elif choice == "3":
             return "hard"
-        print("Please enter 1 or 2.")
+        elif choice == "4":
+            return "impossible"
+        print("Please enter 1, 2, 3, or 4.")
+
+
+def get_difficulty_label(difficulty):
+    """Return a colored label for the current difficulty."""
+    labels = {
+        "easy": f"{GREEN}Easy{RESET}",
+        "medium": f"{YELLOW}Medium{RESET}",
+        "hard": f"{RED}Hard{RESET}",
+        "impossible": f"{MAGENTA}Impossible{RESET}",
+    }
+    return labels.get(difficulty, difficulty)
 
 
 def get_player_names(game_mode):
@@ -209,36 +257,6 @@ def get_player_names(game_mode):
 # --- Game Logic ---
 # =========================
 
-def reset_board():
-    """Create a fresh board with numbers 1-9.
-
-    We need this to start a new game without leftover X's and O's.
-    Returns a brand new 2D list.
-    """
-    return [
-        ["1", "2", "3"],
-        ["4", "5", "6"],
-        ["7", "8", "9"]
-    ]
-
-
-def get_open_spots(board):
-    """Find all the open spots on the board.
-
-    Returns a list of (row, col) tuples for spots that aren't taken.
-    This is used by the computer to know where it can play.
-
-    A list comprehension is a shortcut for building a list.
-    It's like saying "give me every (row, col) where the spot isn't X or O".
-    """
-    spots = []
-    for row in range(3):
-        for col in range(3):
-            if board[row][col] not in ["X", "O"]:
-                spots.append((row, col))
-    return spots
-
-
 def get_move(board, player, player_name):
     """Ask the player to pick a spot and make sure it's valid.
 
@@ -258,158 +276,15 @@ def get_move(board, player, player_name):
             continue
 
         # Turn the number into a row and column on the board
-        # For example: spot 1 is row 0, col 0  |  spot 5 is row 1, col 1
-        spot = int(move) - 1
-        row = spot // 3
-        col = spot % 3
+        row, col = Board.spot_to_coords(move)
 
         # Check if that spot is already taken (has an X or O)
-        if board[row][col] in ["X", "O"]:
+        if not board.is_valid_move(row, col):
             print("That spot is already taken! Try again.")
             continue
 
         # If we get here, the move is good!
         return row, col
-
-
-def place_move(board, row, col, player):
-    """Put the player's mark (X or O) on the board."""
-    board[row][col] = player
-
-
-def check_winner(board):
-    """Check if someone has won the game.
-
-    Returns the winning player ("X" or "O") if there's a winner,
-    or None if no one has won yet.
-
-    There are 3 ways to win tic-tac-toe:
-    1. Three in a row (horizontal)
-    2. Three in a column (vertical)
-    3. Three in a diagonal
-    """
-
-    # --- Check horizontal wins (rows) ---
-    # Look at each row: if all 3 spots match, that player wins!
-    for row in board:
-        if row[0] == row[1] == row[2]:
-            return row[0]
-
-    # --- Check vertical wins (columns) ---
-    # This is trickier - we need to look DOWN each column.
-    # board[0][col] is the top, board[1][col] is the middle,
-    # board[2][col] is the bottom.
-    for col in range(3):
-        if board[0][col] == board[1][col] == board[2][col]:
-            return board[0][col]
-
-    # --- Check diagonal wins ---
-    # Top-left to bottom-right: (0,0), (1,1), (2,2)
-    if board[0][0] == board[1][1] == board[2][2]:
-        return board[0][0]
-
-    # Top-right to bottom-left: (0,2), (1,1), (2,0)
-    if board[0][2] == board[1][1] == board[2][0]:
-        return board[0][2]
-
-    # No winner yet
-    return None
-
-
-def check_tie(board):
-    """Check if the board is full (all spots taken).
-
-    Returns True if every spot has an X or O (no numbers left).
-    Returns False if there are still open spots.
-
-    We loop through every row and every spot - if we find any
-    spot that isn't X or O, the board isn't full yet.
-    """
-    for row in board:
-        for spot in row:
-            if spot not in ["X", "O"]:
-                return False
-    return True
-
-
-# =========================
-# --- AI Functions ---
-# =========================
-
-def get_computer_move_easy(board):
-    """Computer picks a random open spot (Easy mode).
-
-    Uses random.choice() to pick randomly from the list of open spots.
-    This is the simplest AI - it doesn't think, just picks!
-    """
-    open_spots = get_open_spots(board)
-    return random.choice(open_spots)
-
-
-def find_winning_move(board, player):
-    """Check if the given player can win on their next move.
-
-    Try placing the player's mark in each open spot. If that
-    creates a win, return that spot. Otherwise return None.
-
-    This is "what if" thinking - we temporarily try a move,
-    check if it wins, then undo it.
-    """
-    open_spots = get_open_spots(board)
-
-    for row, col in open_spots:
-        # Temporarily place the mark
-        original = board[row][col]
-        board[row][col] = player
-
-        # Check if this move wins
-        if check_winner(board) == player:
-            # Undo the move and return this winning spot
-            board[row][col] = original
-            return (row, col)
-
-        # Undo the move
-        board[row][col] = original
-
-    # No winning move found
-    return None
-
-
-def get_computer_move_hard(board, computer_mark, human_mark):
-    """Computer uses strategy to pick the best move (Hard mode).
-
-    Priority order (this is how the computer "thinks"):
-    1. WIN:    If computer can win, take the winning move!
-    2. BLOCK:  If human can win next turn, block them!
-    3. CENTER: Take the center if it's open (strong position)
-    4. CORNER: Take a corner if available (next best positions)
-    5. RANDOM: Pick any open spot
-
-    This is called priority-based decision making - check the most
-    important things first, and fall back to less important options.
-    """
-    # 1. Can we WIN right now? Take it!
-    winning_move = find_winning_move(board, computer_mark)
-    if winning_move:
-        return winning_move
-
-    # 2. Can the HUMAN win next turn? Block them!
-    blocking_move = find_winning_move(board, human_mark)
-    if blocking_move:
-        return blocking_move
-
-    # 3. Take the CENTER if it's open (position 5 = row 1, col 1)
-    if board[1][1] not in ["X", "O"]:
-        return (1, 1)
-
-    # 4. Take a CORNER if available
-    corners = [(0, 0), (0, 2), (2, 0), (2, 2)]
-    open_corners = [(r, c) for r, c in corners if board[r][c] not in ["X", "O"]]
-    if open_corners:
-        return random.choice(open_corners)
-
-    # 5. Take any open spot (RANDOM fallback)
-    return get_computer_move_easy(board)
 
 
 # =========================
@@ -432,7 +307,7 @@ def play_again():
             print("Please enter 'y' for yes or 'n' for no.")
 
 
-def play_game(board, names, scores, game_mode, difficulty):
+def play_game(board, names, scores, game_mode, difficulty, ai=None):
     """Play one complete game of tic-tac-toe.
 
     This function contains the turn-by-turn game loop.
@@ -448,38 +323,40 @@ def play_game(board, names, scores, game_mode, difficulty):
         is_computer_turn = (game_mode == "1" and current_player == "O")
 
         if is_computer_turn:
-            # Computer's turn - pick a move based on difficulty
+            # Computer's turn - pick a move using the AI object
             print(f"{MAGENTA}{names['O']} is thinking...{RESET}")
             time.sleep(0.8)  # Short pause so it feels like the computer is thinking
 
-            if difficulty == "easy":
-                row, col = get_computer_move_easy(board)
-            else:
-                row, col = get_computer_move_hard(board, "O", "X")
+            row, col = ai.get_move(board)
         else:
             # Human's turn - ask for input
             row, col = get_move(board, current_player, names[current_player])
 
         # Place their mark on the board
-        place_move(board, row, col, current_player)
+        board.place_move(row, col, current_player)
 
         # Clear screen and redraw everything
         clear_screen()
         print("=== Tic-Tac-Toe ===")
         if game_mode == "1":
-            diff_label = f"{GREEN}Easy{RESET}" if difficulty == "easy" else f"{RED}Hard{RESET}"
+            diff_label = get_difficulty_label(difficulty)
             print(f"  Mode: vs Computer ({diff_label})")
         display_scoreboard(names, scores)
-        display_board(board)
-
-        # Show what the computer played
-        if is_computer_turn:
-            spot_number = row * 3 + col + 1
-            print(f"{MAGENTA}{names['O']} played spot {spot_number}{RESET}")
-            print()
 
         # Check if the current player just won!
-        winner = check_winner(board)
+        winner = board.check_winner()
+        winning_line = board.get_winning_line() if winner else None
+
+        display_board(board, winning_line=winning_line)
+
+        # Show what the computer played (and why)
+        if is_computer_turn:
+            spot_number = Board.coords_to_spot(row, col)
+            print(f"{MAGENTA}{names['O']} played spot {spot_number}{RESET}")
+            if ai.last_explanation:
+                print(f"  {DIM}({ai.last_explanation}){RESET}")
+            print()
+
         if winner:
             color = CYAN if winner == "X" else RED
             print(f"{GREEN}*** {BOLD}{color}{names[winner]}{RESET}{GREEN} ({BOLD}{color}{winner}{RESET}{GREEN}) wins! Congratulations! ***{RESET}")
@@ -487,7 +364,7 @@ def play_game(board, names, scores, game_mode, difficulty):
             return
 
         # Check if the board is full (tie game)
-        if check_tie(board):
+        if board.is_full():
             print(f"{YELLOW}It's a tie! Great game, everyone!{RESET}")
             scores["tie"] += 1
             return
@@ -503,56 +380,59 @@ def play_game(board, names, scores, game_mode, difficulty):
 # --- Program Start! ---
 # ======================
 
-clear_screen()
-display_banner(["Welcome to", "TIC-TAC-TOE!"])
-print()
-
-# Choose game mode: 1 player or 2 players
-game_mode = get_game_mode()
-
-# If single player, choose difficulty
-difficulty = None
-if game_mode == "1":
-    difficulty = get_difficulty()
-
-# Get player names (computer name is automatic in 1-player mode)
-names = get_player_names(game_mode)
-
-# Scores are stored in a dictionary - easy to look up by key
-scores = {"X": 0, "O": 0, "tie": 0}
-
-# Outer game loop - keeps playing until they want to stop
-playing = True
-while playing:
-    # Reset the board for a fresh game
-    board = reset_board()
-
-    # Show the starting state
+if __name__ == "__main__":
     clear_screen()
-    print("=== Tic-Tac-Toe ===")
+    display_banner(["Welcome to", "TIC-TAC-TOE!"])
+    print()
+
+    # Choose game mode: 1 player or 2 players
+    game_mode = get_game_mode()
+
+    # If single player, choose difficulty
+    difficulty = None
+    ai = None
     if game_mode == "1":
-        diff_label = f"{GREEN}Easy{RESET}" if difficulty == "easy" else f"{RED}Hard{RESET}"
-        print(f"  Mode: vs Computer ({diff_label})")
+        difficulty = get_difficulty()
+        ai = AI(difficulty, mark="O", opponent_mark="X")
+
+    # Get player names (computer name is automatic in 1-player mode)
+    names = get_player_names(game_mode)
+
+    # Scores are stored in a dictionary - easy to look up by key
+    scores = {"X": 0, "O": 0, "tie": 0}
+
+    # Outer game loop - keeps playing until they want to stop
+    playing = True
+    while playing:
+        # Reset the board for a fresh game
+        board = Board()
+
+        # Show the starting state
+        clear_screen()
+        print("=== Tic-Tac-Toe ===")
+        if game_mode == "1":
+            diff_label = get_difficulty_label(difficulty)
+            print(f"  Mode: vs Computer ({diff_label})")
+        display_scoreboard(names, scores)
+        display_board(board)
+        color_x = BOLD + CYAN + names['X'] + RESET
+        print(f"{color_x} (X) goes first!")
+        print()
+
+        # Play one complete game
+        play_game(board, names, scores, game_mode, difficulty, ai)
+
+        # Show final score and ask to play again
+        print()
+        display_scoreboard(names, scores)
+        print()
+        playing = play_again()
+
+    # Goodbye message
+    clear_screen()
+    display_banner(["Thanks for playing!"])
+    print()
+    print("=== Final Scores ===")
     display_scoreboard(names, scores)
-    display_board(board)
-    color_x = BOLD + CYAN + names['X'] + RESET
-    print(f"{color_x} (X) goes first!")
     print()
-
-    # Play one complete game
-    play_game(board, names, scores, game_mode, difficulty)
-
-    # Show final score and ask to play again
-    print()
-    display_scoreboard(names, scores)
-    print()
-    playing = play_again()
-
-# Goodbye message
-clear_screen()
-display_banner(["Thanks for playing!"])
-print()
-print("=== Final Scores ===")
-display_scoreboard(names, scores)
-print()
-print("See you next time!")
+    print("See you next time!")
